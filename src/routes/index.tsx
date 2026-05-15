@@ -457,7 +457,9 @@ function ArteToolPart({ part }: { part: ArtePart }) {
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <img
           src={part.output.imageDataUrl}
-          alt="Arte gerada"
+          alt="Arte gerada do Novo Glorex"
+          loading="lazy"
+          decoding="async"
           className="block w-full"
         />
         <div className="flex items-center justify-between border-t border-border px-3 py-2">
