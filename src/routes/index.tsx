@@ -397,9 +397,10 @@ function Index() {
           />
           <Button
             type="submit"
-            disabled={isLoading || !input.trim()}
+            disabled={isLoading || !input.trim() || !online}
             size="icon"
             className="h-11 w-11 shrink-0"
+            title={!online ? "Sem conexão" : undefined}
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
