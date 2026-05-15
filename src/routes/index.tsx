@@ -244,10 +244,7 @@ function Index() {
     e?.preventDefault();
     const text = input.trim();
     if (!text || isLoading) return;
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      alert("Você está sem internet. Reconecte e tente de novo.");
-      return;
-    }
+    if (!online) return;
     setInput("");
     await sendMessage({ text });
   };
