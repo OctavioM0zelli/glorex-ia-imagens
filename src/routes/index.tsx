@@ -71,15 +71,50 @@ function loadArts(): StoredArt[] {
   }
 }
 
-function saveArt(dataUrl: string) {
+// Comprime a arte (data URL) para JPEG ~720px antes de salvar.
+// Reduz drasticamente o uso de localStorage em celulares antigos.
+async function compressDataUrl(dataUrl: string, maxSize = 720, quality = 0.78): Promise<string> {
+  if (typeof window === "undefined") return dataUrl;
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = dataUrl;
+    await img.decode();
+    const ratio = Math.min(1, maxSize / Math.max(img.width, img.height));
+    const w = Math.round(img.width * ratio);
+    const h = Math.round(img.height * ratio);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return dataUrl;
+  }
+}
+
+async function saveArt(dataUrl: string) {
   if (typeof window === "undefined") return;
-  const existing = loadArts();
-  if (existing.some((a) => a.dataUrl === dataUrl)) return;
-  const next = [
-    ...existing,
-    { id: crypto.randomUUID(), dataUrl, createdAt: Date.now() },
-  ].slice(-MAX_ARTS);
-  window.localStorage.setItem(ARTS_KEY, JSON.stringify(next));
+  try {
+    const existing = loadArts();
+    if (existing.some((a) => a.dataUrl === dataUrl)) return;
+    const compressed = await compressDataUrl(dataUrl);
+    const next = [
+      ...existing,
+      { id: crypto.randomUUID(), dataUrl: compressed, createdAt: Date.now() },
+    ].slice(-MAX_ARTS);
+    window.localStorage.setItem(ARTS_KEY, JSON.stringify(next));
+  } catch (err) {
+    // Quota exceeded ou modo privado: limpa e tenta uma vez sem histórico
+    console.warn("Falha ao salvar arte:", err);
+    try {
+      window.localStorage.removeItem(ARTS_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function Index() {
