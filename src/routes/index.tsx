@@ -311,7 +311,11 @@ function Index() {
           )}
 
           {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+            >
               {error.message || "Algo deu errado. Tente novamente."}
             </div>
           )}
