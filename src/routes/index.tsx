@@ -298,6 +298,16 @@ function Index() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {installEvent && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleInstall}
+                title="Instalar I.A GX no celular"
+              >
+                Instalar
+              </Button>
+            )}
             {artsCount > 0 && (
               <Button
                 variant="ghost"
@@ -323,6 +333,16 @@ function Index() {
             )}
           </div>
         </div>
+        {!online && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-center gap-2 bg-destructive/10 px-4 py-1.5 text-xs font-medium text-destructive"
+          >
+            <WifiOff className="h-3.5 w-3.5" />
+            Sem conexão — a geração de artes está pausada até voltar a internet.
+          </div>
+        )}
       </header>
 
       <main
