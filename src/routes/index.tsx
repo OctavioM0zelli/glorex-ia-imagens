@@ -39,12 +39,12 @@ function sanitizeMessagesForApi(messages: UIMessage[]): UIMessage[] {
         ...part,
         output: {
           ...artePart.output,
-          imageDataUrl: undefined,
+          imageDataUrl: "",
           imagemGerada: true,
         },
       };
     }),
-  }));
+  })) as UIMessage[];
 }
 
 function loadInitial(): UIMessage[] {
