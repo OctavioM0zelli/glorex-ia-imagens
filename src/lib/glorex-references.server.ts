@@ -16,15 +16,15 @@ export async function getGlorexReferences(origin: string) {
   if (cached) return cached;
   const [logo, sexta, sabado, quarta, domingo, terca, quinta, sextaV2, tercaPremiada] =
     await Promise.all([
-      fetchAsset(origin, "logo-novo-glorex.png", "image/png"),
-      fetchAsset(origin, "template-sexta.jpeg", "image/jpeg"),
-      fetchAsset(origin, "template-sabado.png", "image/png"),
-      fetchAsset(origin, "template-quarta.png", "image/png"),
-      fetchAsset(origin, "template-domingo.png", "image/png"),
-      fetchAsset(origin, "template-terca.png", "image/png"),
-      fetchAsset(origin, "template-quinta.png", "image/png"),
-      fetchAsset(origin, "template-sexta-v2.png", "image/png"),
-      fetchAsset(origin, "template-terca-premiada.png", "image/png"),
+      fetchAsset(origin, "ref-logo-novo-glorex.jpg", "image/jpeg"),
+      fetchAsset(origin, "ref-template-sexta.jpg", "image/jpeg"),
+      fetchAsset(origin, "ref-template-sabado.jpg", "image/jpeg"),
+      fetchAsset(origin, "ref-template-quarta.jpg", "image/jpeg"),
+      fetchAsset(origin, "ref-template-domingo.jpg", "image/jpeg"),
+      fetchAsset(origin, "ref-template-terca.jpg", "image/jpeg"),
+      fetchAsset(origin, "ref-template-quinta.jpg", "image/jpeg"),
+      fetchAsset(origin, "ref-template-sexta-v2.jpg", "image/jpeg"),
+      fetchAsset(origin, "ref-template-terca-premiada.jpg", "image/jpeg"),
     ]);
   cached = {
     logo,

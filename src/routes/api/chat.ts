@@ -46,7 +46,7 @@ export const Route = createFileRoute("/api/chat")({
         const chatModel = gateway("google/gemini-3-flash-preview");
 
         // Cap previous arts to avoid huge payloads / model rejecting too many images
-        const previousArts = (artesGeradas || []).slice(-3);
+        const previousArts = (artesGeradas || []).slice(-1);
 
         const gerarArte = tool({
           description:
@@ -116,10 +116,10 @@ VARIAÇÃO OBRIGATÓRIA (muito importante):
 
 Devolva APENAS a imagem final, sem texto extra.`;
 
-            // Pick a rotating subset of templates (4) so each call sees variety
-            // without overloading the image model with 8+ references.
+            // Pick a rotating subset of templates (2) so each call sees variety
+            // without overloading the image model with too many references.
             const shuffled = [...refs.templates].sort(() => Math.random() - 0.5);
-            const sampledTemplates = shuffled.slice(0, 4);
+            const sampledTemplates = shuffled.slice(0, 2);
 
             const userContent: Array<
               | { type: "text"; text: string }
@@ -144,6 +144,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
                 headers: {
                   "Content-Type": "application/json",
                   "Lovable-API-Key": apiKey,
+                  "X-Lovable-AIG-SDK": "vercel-ai-sdk",
                 },
                 body: JSON.stringify({
                   model: "google/gemini-3.1-flash-image-preview",
@@ -188,6 +189,15 @@ Devolva APENAS a imagem final, sem texto extra.`;
                 abertura: input.abertura,
                 bolaDoDia: input.bolaDoDia,
               },
+            };
+          },
+          toModelOutput: ({ output }) => {
+            const result = output as { ok?: boolean; error?: string };
+            return {
+              type: "text" as const,
+              value: result.ok
+                ? "Arte do Novo Glorex gerada com sucesso. A imagem já foi entregue ao usuário na interface."
+                : `Falha ao gerar a arte: ${result.error ?? "erro desconhecido"}`,
             };
           },
         });
