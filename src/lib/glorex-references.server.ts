@@ -14,11 +14,21 @@ async function fetchAsset(origin: string, file: string, mime: string): Promise<R
 
 export async function getGlorexReferences(origin: string) {
   if (cached) return cached;
-  const [logo, sexta, sabado] = await Promise.all([
-    fetchAsset(origin, "logo-novo-glorex.png", "image/png"),
-    fetchAsset(origin, "template-sexta.jpeg", "image/jpeg"),
-    fetchAsset(origin, "template-sabado.png", "image/png"),
-  ]);
-  cached = { logo, templates: [sexta, sabado] };
+  const [logo, sexta, sabado, quarta, domingo, terca, quinta, sextaV2, tercaPremiada] =
+    await Promise.all([
+      fetchAsset(origin, "logo-novo-glorex.png", "image/png"),
+      fetchAsset(origin, "template-sexta.jpeg", "image/jpeg"),
+      fetchAsset(origin, "template-sabado.png", "image/png"),
+      fetchAsset(origin, "template-quarta.png", "image/png"),
+      fetchAsset(origin, "template-domingo.png", "image/png"),
+      fetchAsset(origin, "template-terca.png", "image/png"),
+      fetchAsset(origin, "template-quinta.png", "image/png"),
+      fetchAsset(origin, "template-sexta-v2.png", "image/png"),
+      fetchAsset(origin, "template-terca-premiada.png", "image/png"),
+    ]);
+  cached = {
+    logo,
+    templates: [sexta, sabado, quarta, domingo, terca, quinta, sextaV2, tercaPremiada],
+  };
   return cached;
 }
