@@ -45,7 +45,8 @@ export const Route = createFileRoute("/api/chat")({
         const gateway = createLovableAiGatewayProvider(apiKey);
         const chatModel = gateway("google/gemini-3-flash-preview");
 
-        const previousArts = (artesGeradas || []).slice(-10);
+        // Cap previous arts to avoid huge payloads / model rejecting too many images
+        const previousArts = (artesGeradas || []).slice(-3);
 
         const gerarArte = tool({
           description:
@@ -115,13 +116,18 @@ VARIAÇÃO OBRIGATÓRIA (muito importante):
 
 Devolva APENAS a imagem final, sem texto extra.`;
 
+            // Pick a rotating subset of templates (4) so each call sees variety
+            // without overloading the image model with 8+ references.
+            const shuffled = [...refs.templates].sort(() => Math.random() - 0.5);
+            const sampledTemplates = shuffled.slice(0, 4);
+
             const userContent: Array<
               | { type: "text"; text: string }
               | { type: "image_url"; image_url: { url: string } }
             > = [
               { type: "text", text: promptText },
               { type: "image_url", image_url: { url: refs.logo.dataUrl } },
-              ...refs.templates.map((t) => ({
+              ...sampledTemplates.map((t) => ({
                 type: "image_url" as const,
                 image_url: { url: t.dataUrl },
               })),
