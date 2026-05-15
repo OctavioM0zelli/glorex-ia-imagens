@@ -152,27 +152,41 @@ function Index() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (messages.length === 0) {
-      window.localStorage.removeItem(STORAGE_KEY);
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
       return;
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch (err) {
+      console.warn("Falha ao salvar histórico:", err);
+    }
 
-    // Save any newly generated arts
-    let added = false;
-    for (const m of messages) {
-      for (const part of m.parts) {
-        if (part.type === "tool-gerar_arte_glorex") {
-          const p = part as unknown as ArtePart;
-          if (p.state === "output-available" && p.output?.ok && p.output.imageDataUrl) {
-            const before = loadArts().length;
-            saveArt(p.output.imageDataUrl);
-            const after = loadArts().length;
-            if (after > before) added = true;
+    // Save any newly generated arts (async, fire-and-forget)
+    (async () => {
+      let added = false;
+      for (const m of messages) {
+        for (const part of m.parts) {
+          if (part.type === "tool-gerar_arte_glorex") {
+            const p = part as unknown as ArtePart;
+            if (
+              p.state === "output-available" &&
+              p.output?.ok &&
+              p.output.imageDataUrl
+            ) {
+              const before = loadArts().length;
+              await saveArt(p.output.imageDataUrl);
+              const after = loadArts().length;
+              if (after > before) added = true;
+            }
           }
         }
       }
-    }
-    if (added) setArtsCount(loadArts().length);
+      if (added) setArtsCount(loadArts().length);
+    })();
   }, [messages]);
 
   // Auto-scroll
@@ -194,6 +208,10 @@ function Index() {
     e?.preventDefault();
     const text = input.trim();
     if (!text || isLoading) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      alert("Você está sem internet. Reconecte e tente de novo.");
+      return;
+    }
     setInput("");
     await sendMessage({ text });
   };
@@ -201,14 +219,26 @@ function Index() {
   const handleNewChat = () => {
     setMessages([]);
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem(STORAGE_KEY);
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
     }
     setResetKey((k) => k + 1);
   };
 
   const handleClearArts = () => {
     if (typeof window === "undefined") return;
-    window.localStorage.removeItem(ARTS_KEY);
+    const ok = window.confirm(
+      "Apagar a memória de estilo? A I.A GX vai gerar a próxima arte sem se basear nas anteriores.",
+    );
+    if (!ok) return;
+    try {
+      window.localStorage.removeItem(ARTS_KEY);
+    } catch {
+      /* ignore */
+    }
     setArtsCount(0);
   };
 
