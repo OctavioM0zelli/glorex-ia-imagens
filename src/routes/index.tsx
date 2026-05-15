@@ -250,6 +250,9 @@ function Index() {
             <img
               src={logo}
               alt="Novo Glorex"
+              width={48}
+              height={48}
+              decoding="async"
               className="h-12 w-12 object-contain"
             />
             <div>
