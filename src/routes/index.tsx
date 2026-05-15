@@ -29,6 +29,7 @@ const ARTS_KEY = "glorex-generated-arts";
 const MAX_ARTS = 30;
 // Quantas artes mandar como referência por requisição (mantém payload leve).
 const ARTS_SAMPLE_PER_REQUEST = 3;
+const MAX_ART_REFERENCE_BYTES = 850_000;
 
 type StoredArt = { id: string; dataUrl: string; createdAt: number };
 
@@ -75,9 +76,9 @@ function loadArts(): StoredArt[] {
   }
 }
 
-// Comprime a arte (data URL) para JPEG ~720px antes de salvar.
+// Comprime a arte (data URL) para JPEG leve antes de salvar/enviar.
 // Reduz drasticamente o uso de localStorage em celulares antigos.
-async function compressDataUrl(dataUrl: string, maxSize = 720, quality = 0.78): Promise<string> {
+async function compressDataUrl(dataUrl: string, maxSize = 540, quality = 0.68): Promise<string> {
   if (typeof window === "undefined") return dataUrl;
   try {
     const img = new Image();
@@ -104,7 +105,11 @@ async function saveArt(dataUrl: string) {
   try {
     const existing = loadArts();
     if (existing.some((a) => a.dataUrl === dataUrl)) return;
-    const compressed = await compressDataUrl(dataUrl);
+    let compressed = await compressDataUrl(dataUrl);
+    if (compressed.length > MAX_ART_REFERENCE_BYTES) {
+      compressed = await compressDataUrl(dataUrl, 420, 0.58);
+    }
+    if (compressed.length > MAX_ART_REFERENCE_BYTES) return;
     const next = [
       ...existing,
       { id: crypto.randomUUID(), dataUrl: compressed, createdAt: Date.now() },
@@ -180,7 +185,9 @@ function Index() {
           const sample = [
             ...recent,
             ...shuffled.slice(0, Math.max(0, ARTS_SAMPLE_PER_REQUEST - 1)),
-          ].map((a) => a.dataUrl);
+          ]
+            .map((a) => a.dataUrl)
+            .filter((dataUrl) => dataUrl.length <= MAX_ART_REFERENCE_BYTES);
 
           return {
             body: {
