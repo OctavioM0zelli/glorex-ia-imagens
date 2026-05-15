@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sem conexão — I.A GX</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#FF8A00" />
+    <style>
+      :root { color-scheme: light; }
+      html, body { margin: 0; height: 100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: #fff; color: #1a1a1a; }
+      .wrap { min-height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; }
+      img { width: 96px; height: 96px; object-fit: contain; margin-bottom: 16px; }
+      h1 { font-size: 22px; margin: 0 0 8px; }
+      p { color: #555; max-width: 420px; line-height: 1.5; margin: 0 0 24px; }
+      button { background: #FF8A00; color: #fff; border: 0; border-radius: 10px; padding: 12px 18px; font-weight: 600; font-size: 15px; cursor: pointer; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <img src="/icon-192.png" alt="Novo Glorex" />
+      <h1>Você está sem conexão</h1>
+      <p>A I.A GX precisa de internet para gerar artes novas. Reconecte e tente de novo — suas conversas e memória de estilo continuam salvas.</p>
+      <button onclick="location.reload()">Tentar novamente</button>
+    </div>
+  </body>
+</html>
