@@ -191,6 +191,15 @@ Devolva APENAS a imagem final, sem texto extra.`;
               },
             };
           },
+          toModelOutput: ({ output }) => {
+            const result = output as { ok?: boolean; error?: string };
+            return {
+              type: "text" as const,
+              value: result.ok
+                ? "Arte do Novo Glorex gerada com sucesso. A imagem já foi entregue ao usuário na interface."
+                : `Falha ao gerar a arte: ${result.error ?? "erro desconhecido"}`,
+            };
+          },
         });
 
         const result = streamText({
