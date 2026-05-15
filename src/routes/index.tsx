@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Download, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
 
 import logo from "@/assets/logo-novo-glorex.png";
@@ -23,6 +23,10 @@ export const Route = createFileRoute("/")({
 });
 
 const STORAGE_KEY = "glorex-chat-messages";
+const ARTS_KEY = "glorex-generated-arts";
+const MAX_ARTS = 10;
+
+type StoredArt = { id: string; dataUrl: string; createdAt: number };
 
 function loadInitial(): UIMessage[] {
   if (typeof window === "undefined") return [];
@@ -36,20 +40,59 @@ function loadInitial(): UIMessage[] {
   }
 }
 
+function loadArts(): StoredArt[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = window.localStorage.getItem(ARTS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveArt(dataUrl: string) {
+  if (typeof window === "undefined") return;
+  const existing = loadArts();
+  if (existing.some((a) => a.dataUrl === dataUrl)) return;
+  const next = [
+    ...existing,
+    { id: crypto.randomUUID(), dataUrl, createdAt: Date.now() },
+  ].slice(-MAX_ARTS);
+  window.localStorage.setItem(ARTS_KEY, JSON.stringify(next));
+}
+
 function Index() {
   const [initial] = useState<UIMessage[]>(loadInitial);
   const [resetKey, setResetKey] = useState(0);
   const [input, setInput] = useState("");
+  const [artsCount, setArtsCount] = useState(() => loadArts().length);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: "/api/chat",
+        prepareSendMessagesRequest: ({ messages, body }) => ({
+          body: {
+            ...body,
+            messages,
+            artesGeradas: loadArts().map((a) => a.dataUrl),
+          },
+        }),
+      }),
+    [],
+  );
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
     id: `glorex-chat-${resetKey}`,
     messages: initial,
-    transport: new DefaultChatTransport({ api: "/api/chat" }),
+    transport,
   });
 
-  // Persist messages to localStorage
+  // Persist messages + capture generated arts
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (messages.length === 0) {
@@ -57,6 +100,23 @@ function Index() {
       return;
     }
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+
+    // Save any newly generated arts
+    let added = false;
+    for (const m of messages) {
+      for (const part of m.parts) {
+        if (part.type === "tool-gerar_arte_glorex") {
+          const p = part as unknown as ArtePart;
+          if (p.state === "output-available" && p.output?.ok && p.output.imageDataUrl) {
+            const before = loadArts().length;
+            saveArt(p.output.imageDataUrl);
+            const after = loadArts().length;
+            if (after > before) added = true;
+          }
+        }
+      }
+    }
+    if (added) setArtsCount(loadArts().length);
   }, [messages]);
 
   // Auto-scroll
@@ -90,6 +150,12 @@ function Index() {
     setResetKey((k) => k + 1);
   };
 
+  const handleClearArts = () => {
+    if (typeof window === "undefined") return;
+    window.localStorage.removeItem(ARTS_KEY);
+    setArtsCount(0);
+  };
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b border-border bg-card/60 backdrop-blur">
@@ -109,17 +175,31 @@ function Index() {
               </p>
             </div>
           </div>
-          {messages.length > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleNewChat}
-              className="text-muted-foreground hover:text-foreground"
-            >
-              <Trash2 className="mr-1.5 h-4 w-4" />
-              Nova conversa
-            </Button>
-          )}
+          <div className="flex items-center gap-1">
+            {artsCount > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearArts}
+                className="text-muted-foreground hover:text-foreground"
+                title="Limpa as artes que a I.A GX usa como memória de estilo"
+              >
+                <Sparkles className="mr-1.5 h-4 w-4" />
+                Memória ({artsCount})
+              </Button>
+            )}
+            {messages.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleNewChat}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Trash2 className="mr-1.5 h-4 w-4" />
+                Nova conversa
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -266,7 +346,7 @@ function ArteToolPart({ part }: { part: ArtePart }) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
         <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        Gerando arte com Nano Banana...
+        Gerando arte com Nano Banana 2...
       </div>
     );
   }
