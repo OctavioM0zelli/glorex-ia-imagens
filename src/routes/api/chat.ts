@@ -24,12 +24,12 @@ Seu trabalho:
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
 // Limites de payload para evitar payloads gigantes que quebram o gateway
-const MAX_ARTES_GERADAS = 3;
-const MAX_ART_DATAURL_LENGTH = 800_000; // ~600KB base64
+const MAX_ARTES_GERADAS = 5;
+const MAX_ART_DATAURL_LENGTH = 1_500_000; // ~1.1MB base64 por imagem
 const GATEWAY_TIMEOUT_MS = 60_000;
 
 const RequestSchema = z.object({
-  messages: z.array(z.any()).min(1).max(200),
+  messages: z.array(z.any()).min(1).max(500),
   artesGeradas: z
     .array(z.string().max(MAX_ART_DATAURL_LENGTH))
     .max(MAX_ARTES_GERADAS)
