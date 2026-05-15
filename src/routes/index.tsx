@@ -336,17 +336,16 @@ function Index() {
                 Memória ({artsCount})
               </Button>
             )}
-            {messages.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNewChat}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <Trash2 className="mr-1.5 h-4 w-4" />
-                Nova conversa
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleNewChat}
+              className="text-muted-foreground hover:text-foreground"
+              title="Limpa a conversa atual sem apagar a memória de estilo da I.A"
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              Nova conversa
+            </Button>
           </div>
         </div>
         {!online && (
