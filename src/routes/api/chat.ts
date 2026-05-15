@@ -24,12 +24,12 @@ Seu trabalho:
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
 // Limites de payload para evitar payloads gigantes que quebram o gateway
-const MAX_ARTES_GERADAS = 3;
-const MAX_ART_DATAURL_LENGTH = 800_000; // ~600KB base64
+const MAX_ARTES_GERADAS = 5;
+const MAX_ART_DATAURL_LENGTH = 1_500_000; // ~1.1MB base64 por imagem
 const GATEWAY_TIMEOUT_MS = 60_000;
 
 const RequestSchema = z.object({
-  messages: z.array(z.any()).min(1).max(200),
+  messages: z.array(z.any()).min(1).max(500),
   artesGeradas: z
     .array(z.string().max(MAX_ART_DATAURL_LENGTH))
     .max(MAX_ARTES_GERADAS)
@@ -130,16 +130,20 @@ export const Route = createFileRoute("/api/chat")({
         try {
           parsed = RequestSchema.parse(await request.json());
         } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
           logEvent({
             kind: "error",
             requestId,
             code: "bad-request",
-            error: err instanceof Error ? err.message : String(err),
+            error: detail,
           });
-          return new Response("Requisição inválida.", {
-            status: 400,
-            headers: { "X-Request-Id": requestId },
-          });
+          return new Response(
+            `Requisição inválida (id: ${requestId}). ${detail.slice(0, 200)}`,
+            {
+              status: 400,
+              headers: { "X-Request-Id": requestId },
+            },
+          );
         }
 
         const messages = parsed.messages as UIMessage[];
@@ -148,7 +152,8 @@ export const Route = createFileRoute("/api/chat")({
         const gateway = createLovableAiGatewayProvider(apiKey);
         const chatModel = gateway("google/gemini-3-flash-preview");
 
-        const previousArts = artesGeradas.slice(-1);
+        // Usa até as últimas N artes como referência de estilo (variação)
+        const previousArts = artesGeradas.slice(-MAX_ARTES_GERADAS);
 
         logEvent({
           kind: "chat-start",

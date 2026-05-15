@@ -24,7 +24,11 @@ export const Route = createFileRoute("/")({
 
 const STORAGE_KEY = "glorex-chat-messages";
 const ARTS_KEY = "glorex-generated-arts";
-const MAX_ARTS = 10;
+// Memória de estilo: até 30 artes anteriores como referência base.
+// A I.A não envia todas — amostra algumas a cada geração para variar.
+const MAX_ARTS = 30;
+// Quantas artes mandar como referência por requisição (mantém payload leve).
+const ARTS_SAMPLE_PER_REQUEST = 3;
 
 type StoredArt = { id: string; dataUrl: string; createdAt: number };
 
@@ -165,15 +169,27 @@ function Index() {
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        prepareSendMessagesRequest: ({ messages, body }) => ({
-          body: {
-            ...body,
-            messages: sanitizeMessagesForApi(messages),
-            artesGeradas: loadArts()
-              .slice(-1)
-              .map((a) => a.dataUrl),
-          },
-        }),
+        prepareSendMessagesRequest: ({ messages, body }) => {
+          // Estratégia de amostragem: sempre inclui a arte mais recente
+          // + N-1 sorteadas aleatoriamente das demais. Mantém variedade
+          // sem inflar o payload.
+          const all = loadArts();
+          const recent = all.slice(-1);
+          const pool = all.slice(0, -1);
+          const shuffled = [...pool].sort(() => Math.random() - 0.5);
+          const sample = [
+            ...recent,
+            ...shuffled.slice(0, Math.max(0, ARTS_SAMPLE_PER_REQUEST - 1)),
+          ].map((a) => a.dataUrl);
+
+          return {
+            body: {
+              ...body,
+              messages: sanitizeMessagesForApi(messages),
+              artesGeradas: sample,
+            },
+          };
+        },
       }),
     [],
   );
@@ -320,17 +336,16 @@ function Index() {
                 Memória ({artsCount})
               </Button>
             )}
-            {messages.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleNewChat}
-                className="text-muted-foreground hover:text-foreground"
-              >
-                <Trash2 className="mr-1.5 h-4 w-4" />
-                Nova conversa
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleNewChat}
+              className="text-muted-foreground hover:text-foreground"
+              title="Limpa a conversa atual sem apagar a memória de estilo da I.A"
+            >
+              <Trash2 className="mr-1.5 h-4 w-4" />
+              Nova conversa
+            </Button>
           </div>
         </div>
         {!online && (
