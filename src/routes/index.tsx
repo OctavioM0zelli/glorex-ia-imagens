@@ -169,15 +169,27 @@ function Index() {
     () =>
       new DefaultChatTransport({
         api: "/api/chat",
-        prepareSendMessagesRequest: ({ messages, body }) => ({
-          body: {
-            ...body,
-            messages: sanitizeMessagesForApi(messages),
-            artesGeradas: loadArts()
-              .slice(-1)
-              .map((a) => a.dataUrl),
-          },
-        }),
+        prepareSendMessagesRequest: ({ messages, body }) => {
+          // Estratégia de amostragem: sempre inclui a arte mais recente
+          // + N-1 sorteadas aleatoriamente das demais. Mantém variedade
+          // sem inflar o payload.
+          const all = loadArts();
+          const recent = all.slice(-1);
+          const pool = all.slice(0, -1);
+          const shuffled = [...pool].sort(() => Math.random() - 0.5);
+          const sample = [
+            ...recent,
+            ...shuffled.slice(0, Math.max(0, ARTS_SAMPLE_PER_REQUEST - 1)),
+          ].map((a) => a.dataUrl);
+
+          return {
+            body: {
+              ...body,
+              messages: sanitizeMessagesForApi(messages),
+              artesGeradas: sample,
+            },
+          };
+        },
       }),
     [],
   );
