@@ -16,7 +16,7 @@ export async function getGlorexReferences(origin: string) {
   if (cached) return cached;
   const [logo, sexta, sabado, quarta, domingo, terca, quinta, sextaV2, tercaPremiada] =
     await Promise.all([
-      fetchAsset(origin, "ref-logo-novo-glorex.jpg", "image/jpeg"),
+      fetchAsset(origin, "ref-logo-novo-glorex.png", "image/png"),
       fetchAsset(origin, "ref-template-sexta.jpg", "image/jpeg"),
       fetchAsset(origin, "ref-template-sabado.jpg", "image/jpeg"),
       fetchAsset(origin, "ref-template-quarta.jpg", "image/jpeg"),
