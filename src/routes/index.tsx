@@ -24,7 +24,11 @@ export const Route = createFileRoute("/")({
 
 const STORAGE_KEY = "glorex-chat-messages";
 const ARTS_KEY = "glorex-generated-arts";
-const MAX_ARTS = 10;
+// Memória de estilo: até 30 artes anteriores como referência base.
+// A I.A não envia todas — amostra algumas a cada geração para variar.
+const MAX_ARTS = 30;
+// Quantas artes mandar como referência por requisição (mantém payload leve).
+const ARTS_SAMPLE_PER_REQUEST = 3;
 
 type StoredArt = { id: string; dataUrl: string; createdAt: number };
 
