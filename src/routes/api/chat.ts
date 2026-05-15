@@ -130,16 +130,20 @@ export const Route = createFileRoute("/api/chat")({
         try {
           parsed = RequestSchema.parse(await request.json());
         } catch (err) {
+          const detail = err instanceof Error ? err.message : String(err);
           logEvent({
             kind: "error",
             requestId,
             code: "bad-request",
-            error: err instanceof Error ? err.message : String(err),
+            error: detail,
           });
-          return new Response("Requisição inválida.", {
-            status: 400,
-            headers: { "X-Request-Id": requestId },
-          });
+          return new Response(
+            `Requisição inválida (id: ${requestId}). ${detail.slice(0, 200)}`,
+            {
+              status: 400,
+              headers: { "X-Request-Id": requestId },
+            },
+          );
         }
 
         const messages = parsed.messages as UIMessage[];
@@ -148,7 +152,8 @@ export const Route = createFileRoute("/api/chat")({
         const gateway = createLovableAiGatewayProvider(apiKey);
         const chatModel = gateway("google/gemini-3-flash-preview");
 
-        const previousArts = artesGeradas.slice(-1);
+        // Usa até as últimas N artes como referência de estilo (variação)
+        const previousArts = artesGeradas.slice(-MAX_ARTES_GERADAS);
 
         logEvent({
           kind: "chat-start",
