@@ -71,15 +71,50 @@ function loadArts(): StoredArt[] {
   }
 }
 
-function saveArt(dataUrl: string) {
+// Comprime a arte (data URL) para JPEG ~720px antes de salvar.
+// Reduz drasticamente o uso de localStorage em celulares antigos.
+async function compressDataUrl(dataUrl: string, maxSize = 720, quality = 0.78): Promise<string> {
+  if (typeof window === "undefined") return dataUrl;
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = dataUrl;
+    await img.decode();
+    const ratio = Math.min(1, maxSize / Math.max(img.width, img.height));
+    const w = Math.round(img.width * ratio);
+    const h = Math.round(img.height * ratio);
+    const canvas = document.createElement("canvas");
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    ctx.drawImage(img, 0, 0, w, h);
+    return canvas.toDataURL("image/jpeg", quality);
+  } catch {
+    return dataUrl;
+  }
+}
+
+async function saveArt(dataUrl: string) {
   if (typeof window === "undefined") return;
-  const existing = loadArts();
-  if (existing.some((a) => a.dataUrl === dataUrl)) return;
-  const next = [
-    ...existing,
-    { id: crypto.randomUUID(), dataUrl, createdAt: Date.now() },
-  ].slice(-MAX_ARTS);
-  window.localStorage.setItem(ARTS_KEY, JSON.stringify(next));
+  try {
+    const existing = loadArts();
+    if (existing.some((a) => a.dataUrl === dataUrl)) return;
+    const compressed = await compressDataUrl(dataUrl);
+    const next = [
+      ...existing,
+      { id: crypto.randomUUID(), dataUrl: compressed, createdAt: Date.now() },
+    ].slice(-MAX_ARTS);
+    window.localStorage.setItem(ARTS_KEY, JSON.stringify(next));
+  } catch (err) {
+    // Quota exceeded ou modo privado: limpa e tenta uma vez sem histórico
+    console.warn("Falha ao salvar arte:", err);
+    try {
+      window.localStorage.removeItem(ARTS_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 function Index() {
@@ -117,27 +152,41 @@ function Index() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (messages.length === 0) {
-      window.localStorage.removeItem(STORAGE_KEY);
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
       return;
     }
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    } catch (err) {
+      console.warn("Falha ao salvar histórico:", err);
+    }
 
-    // Save any newly generated arts
-    let added = false;
-    for (const m of messages) {
-      for (const part of m.parts) {
-        if (part.type === "tool-gerar_arte_glorex") {
-          const p = part as unknown as ArtePart;
-          if (p.state === "output-available" && p.output?.ok && p.output.imageDataUrl) {
-            const before = loadArts().length;
-            saveArt(p.output.imageDataUrl);
-            const after = loadArts().length;
-            if (after > before) added = true;
+    // Save any newly generated arts (async, fire-and-forget)
+    (async () => {
+      let added = false;
+      for (const m of messages) {
+        for (const part of m.parts) {
+          if (part.type === "tool-gerar_arte_glorex") {
+            const p = part as unknown as ArtePart;
+            if (
+              p.state === "output-available" &&
+              p.output?.ok &&
+              p.output.imageDataUrl
+            ) {
+              const before = loadArts().length;
+              await saveArt(p.output.imageDataUrl);
+              const after = loadArts().length;
+              if (after > before) added = true;
+            }
           }
         }
       }
-    }
-    if (added) setArtsCount(loadArts().length);
+      if (added) setArtsCount(loadArts().length);
+    })();
   }, [messages]);
 
   // Auto-scroll
@@ -159,6 +208,10 @@ function Index() {
     e?.preventDefault();
     const text = input.trim();
     if (!text || isLoading) return;
+    if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      alert("Você está sem internet. Reconecte e tente de novo.");
+      return;
+    }
     setInput("");
     await sendMessage({ text });
   };
@@ -166,14 +219,26 @@ function Index() {
   const handleNewChat = () => {
     setMessages([]);
     if (typeof window !== "undefined") {
-      window.localStorage.removeItem(STORAGE_KEY);
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
     }
     setResetKey((k) => k + 1);
   };
 
   const handleClearArts = () => {
     if (typeof window === "undefined") return;
-    window.localStorage.removeItem(ARTS_KEY);
+    const ok = window.confirm(
+      "Apagar a memória de estilo? A I.A GX vai gerar a próxima arte sem se basear nas anteriores.",
+    );
+    if (!ok) return;
+    try {
+      window.localStorage.removeItem(ARTS_KEY);
+    } catch {
+      /* ignore */
+    }
     setArtsCount(0);
   };
 
@@ -185,6 +250,9 @@ function Index() {
             <img
               src={logo}
               alt="Novo Glorex"
+              width={48}
+              height={48}
+              decoding="async"
               className="h-12 w-12 object-contain"
             />
             <div>
@@ -243,7 +311,11 @@ function Index() {
           )}
 
           {error && (
-            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+            <div
+              role="alert"
+              aria-live="polite"
+              className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+            >
               {error.message || "Algo deu errado. Tente novamente."}
             </div>
           )}
@@ -385,7 +457,9 @@ function ArteToolPart({ part }: { part: ArtePart }) {
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <img
           src={part.output.imageDataUrl}
-          alt="Arte gerada"
+          alt="Arte gerada do Novo Glorex"
+          loading="lazy"
+          decoding="async"
           className="block w-full"
         />
         <div className="flex items-center justify-between border-t border-border px-3 py-2">

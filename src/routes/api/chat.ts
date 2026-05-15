@@ -23,30 +23,142 @@ Seu trabalho:
 - Cada arte gerada deve ser ÚNICA: variar paleta dentro do laranja-amarelado, disposição dos blocos e elementos decorativos. Nunca repetir uma arte anterior.
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
+// Limites de payload para evitar payloads gigantes que quebram o gateway
+const MAX_ARTES_GERADAS = 3;
+const MAX_ART_DATAURL_LENGTH = 800_000; // ~600KB base64
+const GATEWAY_TIMEOUT_MS = 60_000;
+
+const RequestSchema = z.object({
+  messages: z.array(z.any()).min(1).max(200),
+  artesGeradas: z
+    .array(z.string().max(MAX_ART_DATAURL_LENGTH))
+    .max(MAX_ARTES_GERADAS)
+    .optional()
+    .default([]),
+});
+
+function logEvent(event: Record<string, unknown>) {
+  // Log estruturado JSON — facilita filtro em stack_modern--server-function-logs
+  try {
+    console.log(JSON.stringify({ ts: new Date().toISOString(), ...event }));
+  } catch {
+    console.log("log-failed", event);
+  }
+}
+
+async function fetchGatewayWithRetry(opts: {
+  apiKey: string;
+  body: unknown;
+  requestId: string;
+}): Promise<Response> {
+  const { apiKey, body, requestId } = opts;
+  const maxAttempts = 3;
+  let lastErr: unknown = null;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GATEWAY_TIMEOUT_MS);
+    const startedAt = Date.now();
+    try {
+      const res = await fetch(
+        "https://ai.gateway.lovable.dev/v1/chat/completions",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Lovable-API-Key": apiKey,
+            "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+            "X-Request-Id": requestId,
+          },
+          body: JSON.stringify(body),
+          signal: controller.signal,
+        },
+      );
+      clearTimeout(timer);
+      logEvent({
+        kind: "gateway",
+        requestId,
+        attempt,
+        status: res.status,
+        durationMs: Date.now() - startedAt,
+      });
+      // Retry apenas em 429 e 5xx
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt < maxAttempts) {
+          await new Promise((r) =>
+            setTimeout(r, 500 * Math.pow(2, attempt - 1)),
+          );
+          continue;
+        }
+      }
+      return res;
+    } catch (err) {
+      clearTimeout(timer);
+      lastErr = err;
+      logEvent({
+        kind: "gateway-error",
+        requestId,
+        attempt,
+        durationMs: Date.now() - startedAt,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (attempt < maxAttempts) {
+        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt - 1)));
+        continue;
+      }
+    }
+  }
+  throw lastErr ?? new Error("Falha desconhecida ao chamar o gateway");
+}
+
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const requestId =
+          request.headers.get("x-request-id") ?? crypto.randomUUID();
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) {
-          return new Response("Missing LOVABLE_API_KEY", { status: 500 });
+          logEvent({ kind: "error", requestId, code: "missing-api-key" });
+          return new Response("Configuração da I.A indisponível.", {
+            status: 500,
+            headers: { "X-Request-Id": requestId },
+          });
         }
 
-        const body = (await request.json()) as {
-          messages: UIMessage[];
-          artesGeradas?: string[];
-        };
-        const { messages, artesGeradas = [] } = body;
-        if (!Array.isArray(messages)) {
-          return new Response("Messages are required", { status: 400 });
+        let parsed: z.infer<typeof RequestSchema>;
+        try {
+          parsed = RequestSchema.parse(await request.json());
+        } catch (err) {
+          logEvent({
+            kind: "error",
+            requestId,
+            code: "bad-request",
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return new Response("Requisição inválida.", {
+            status: 400,
+            headers: { "X-Request-Id": requestId },
+          });
         }
 
+        const messages = parsed.messages as UIMessage[];
+        const artesGeradas = parsed.artesGeradas ?? [];
         const origin = new URL(request.url).origin;
         const gateway = createLovableAiGatewayProvider(apiKey);
         const chatModel = gateway("google/gemini-3-flash-preview");
 
-        // Cap previous arts to avoid huge payloads / model rejecting too many images
-        const previousArts = (artesGeradas || []).slice(-1);
+        const previousArts = artesGeradas.slice(-1);
+
+        logEvent({
+          kind: "chat-start",
+          requestId,
+          messageCount: messages.length,
+          previousArtsBytes: previousArts.reduce(
+            (acc, a) => acc + a.length,
+            0,
+          ),
+        });
 
         const gerarArte = tool({
           description:
@@ -68,7 +180,9 @@ export const Route = createFileRoute("/api/chat")({
                 }),
               )
               .min(1),
-            bolaDoDia: z.string().describe("Número e/ou descrição da bola do dia."),
+            bolaDoDia: z
+              .string()
+              .describe("Número e/ou descrição da bola do dia."),
             premioBingo: z
               .string()
               .optional()
@@ -116,9 +230,9 @@ VARIAÇÃO OBRIGATÓRIA (muito importante):
 
 Devolva APENAS a imagem final, sem texto extra.`;
 
-            // Pick a rotating subset of templates (2) so each call sees variety
-            // without overloading the image model with too many references.
-            const shuffled = [...refs.templates].sort(() => Math.random() - 0.5);
+            const shuffled = [...refs.templates].sort(
+              () => Math.random() - 0.5,
+            );
             const sampledTemplates = shuffled.slice(0, 2);
 
             const userContent: Array<
@@ -137,59 +251,103 @@ Devolva APENAS a imagem final, sem texto extra.`;
               })),
             ];
 
-            const res = await fetch(
-              "https://ai.gateway.lovable.dev/v1/chat/completions",
-              {
-                method: "POST",
-                headers: {
-                  "Content-Type": "application/json",
-                  "Lovable-API-Key": apiKey,
-                  "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-                },
-                body: JSON.stringify({
+            try {
+              const res = await fetchGatewayWithRetry({
+                apiKey,
+                requestId,
+                body: {
                   model: "google/gemini-3.1-flash-image-preview",
                   messages: [{ role: "user", content: userContent }],
                   modalities: ["image", "text"],
-                }),
-              },
-            );
+                },
+              });
 
-            if (!res.ok) {
-              const text = await res.text();
-              return {
-                ok: false as const,
-                error: `Falha ao gerar imagem (${res.status}): ${text.slice(0, 300)}`,
-              };
-            }
-
-            const data = (await res.json()) as {
-              choices?: Array<{
-                message?: {
-                  images?: Array<{ image_url?: { url?: string } }>;
-                  content?: string;
+              if (!res.ok) {
+                const text = await res.text();
+                let userMsg: string;
+                if (res.status === 402) {
+                  userMsg =
+                    "Os créditos da I.A GX acabaram. Adicione créditos no Lovable Cloud e tente novamente.";
+                } else if (res.status === 429) {
+                  userMsg =
+                    "Muitas gerações em sequência. Aguarde alguns segundos e tente de novo.";
+                } else if (res.status >= 500) {
+                  userMsg =
+                    "O serviço de imagem está instável agora. Tente novamente em instantes.";
+                } else {
+                  userMsg = `Falha ao gerar imagem (${res.status}).`;
+                }
+                logEvent({
+                  kind: "gen-fail",
+                  requestId,
+                  status: res.status,
+                  body: text.slice(0, 300),
+                });
+                return {
+                  ok: false as const,
+                  error: userMsg,
+                  requestId,
                 };
-              }>;
-            };
+              }
 
-            const imageUrl =
-              data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+              const data = (await res.json()) as {
+                choices?: Array<{
+                  message?: {
+                    images?: Array<{ image_url?: { url?: string } }>;
+                    content?: string;
+                  };
+                }>;
+              };
 
-            if (!imageUrl) {
+              const imageUrl =
+                data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+
+              if (!imageUrl) {
+                logEvent({
+                  kind: "gen-fail",
+                  requestId,
+                  reason: "no-image-in-response",
+                });
+                return {
+                  ok: false as const,
+                  error: "O modelo não retornou imagem. Tente novamente.",
+                  requestId,
+                };
+              }
+
+              logEvent({
+                kind: "gen-ok",
+                requestId,
+                imageBytes: imageUrl.length,
+              });
+
+              return {
+                ok: true as const,
+                imageDataUrl: imageUrl,
+                requestId,
+                resumo: {
+                  dia: input.dia,
+                  abertura: input.abertura,
+                  bolaDoDia: input.bolaDoDia,
+                },
+              };
+            } catch (err) {
+              const isAbort =
+                err instanceof Error &&
+                (err.name === "AbortError" || err.message.includes("aborted"));
+              logEvent({
+                kind: "gen-exception",
+                requestId,
+                error: err instanceof Error ? err.message : String(err),
+              });
               return {
                 ok: false as const,
-                error: "O modelo não retornou imagem.",
+                error: isAbort
+                  ? "A geração demorou demais e foi cancelada. Tente de novo."
+                  : "Não foi possível conectar ao serviço de imagem.",
+                requestId,
               };
             }
-
-            return {
-              ok: true as const,
-              imageDataUrl: imageUrl,
-              resumo: {
-                dia: input.dia,
-                abertura: input.abertura,
-                bolaDoDia: input.bolaDoDia,
-              },
-            };
           },
           toModelOutput: ({ output }) => {
             const result = output as { ok?: boolean; error?: string };
@@ -212,9 +370,19 @@ Devolva APENAS a imagem final, sem texto extra.`;
 
         return result.toUIMessageStreamResponse({
           originalMessages: messages,
+          headers: {
+            "X-Request-Id": requestId,
+            "X-Content-Type-Options": "nosniff",
+          },
           onError: (error) => {
-            console.error("Chat error:", error);
-            return error instanceof Error ? error.message : "Erro desconhecido";
+            logEvent({
+              kind: "stream-error",
+              requestId,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            return error instanceof Error
+              ? `${error.message} (id: ${requestId})`
+              : `Erro desconhecido (id: ${requestId})`;
           },
         });
       },
