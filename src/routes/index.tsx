@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
+import { Download, Loader2, Send, Sparkles, Trash2, WifiOff } from "lucide-react";
 
 import logo from "@/assets/logo-novo-glorex.png";
 import { Button } from "@/components/ui/button";
@@ -117,13 +117,49 @@ async function saveArt(dataUrl: string) {
   }
 }
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
 function Index() {
   const [initial] = useState<UIMessage[]>(loadInitial);
   const [resetKey, setResetKey] = useState(0);
   const [input, setInput] = useState("");
   const [artsCount, setArtsCount] = useState(() => loadArts().length);
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const [installEvent, setInstallEvent] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Online/offline + install prompt listeners
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    const onBip = (e: Event) => {
+      e.preventDefault();
+      setInstallEvent(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("beforeinstallprompt", onBip);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("beforeinstallprompt", onBip);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installEvent) return;
+    await installEvent.prompt();
+    await installEvent.userChoice.catch(() => {});
+    setInstallEvent(null);
+  };
 
   const transport = useMemo(
     () =>
@@ -208,10 +244,7 @@ function Index() {
     e?.preventDefault();
     const text = input.trim();
     if (!text || isLoading) return;
-    if (typeof navigator !== "undefined" && navigator.onLine === false) {
-      alert("Você está sem internet. Reconecte e tente de novo.");
-      return;
-    }
+    if (!online) return;
     setInput("");
     await sendMessage({ text });
   };
@@ -265,6 +298,16 @@ function Index() {
             </div>
           </div>
           <div className="flex items-center gap-1">
+            {installEvent && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleInstall}
+                title="Instalar I.A GX no celular"
+              >
+                Instalar
+              </Button>
+            )}
             {artsCount > 0 && (
               <Button
                 variant="ghost"
@@ -290,6 +333,16 @@ function Index() {
             )}
           </div>
         </div>
+        {!online && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-center gap-2 bg-destructive/10 px-4 py-1.5 text-xs font-medium text-destructive"
+          >
+            <WifiOff className="h-3.5 w-3.5" />
+            Sem conexão — a geração de artes está pausada até voltar a internet.
+          </div>
+        )}
       </header>
 
       <main
@@ -344,9 +397,10 @@ function Index() {
           />
           <Button
             type="submit"
-            disabled={isLoading || !input.trim()}
+            disabled={isLoading || !input.trim() || !online}
             size="icon"
             className="h-11 w-11 shrink-0"
+            title={!online ? "Sem conexão" : undefined}
           >
             {isLoading ? (
               <Loader2 className="h-4 w-4 animate-spin" />
