@@ -29,6 +29,7 @@ const ARTS_KEY = "glorex-generated-arts";
 const MAX_ARTS = 30;
 // Quantas artes mandar como referência por requisição (mantém payload leve).
 const ARTS_SAMPLE_PER_REQUEST = 3;
+const MAX_ART_REFERENCE_BYTES = 850_000;
 
 type StoredArt = { id: string; dataUrl: string; createdAt: number };
 
@@ -75,9 +76,9 @@ function loadArts(): StoredArt[] {
   }
 }
 
-// Comprime a arte (data URL) para JPEG ~720px antes de salvar.
+// Comprime a arte (data URL) para JPEG leve antes de salvar/enviar.
 // Reduz drasticamente o uso de localStorage em celulares antigos.
-async function compressDataUrl(dataUrl: string, maxSize = 720, quality = 0.78): Promise<string> {
+async function compressDataUrl(dataUrl: string, maxSize = 540, quality = 0.68): Promise<string> {
   if (typeof window === "undefined") return dataUrl;
   try {
     const img = new Image();
@@ -104,7 +105,11 @@ async function saveArt(dataUrl: string) {
   try {
     const existing = loadArts();
     if (existing.some((a) => a.dataUrl === dataUrl)) return;
-    const compressed = await compressDataUrl(dataUrl);
+    let compressed = await compressDataUrl(dataUrl);
+    if (compressed.length > MAX_ART_REFERENCE_BYTES) {
+      compressed = await compressDataUrl(dataUrl, 420, 0.58);
+    }
+    if (compressed.length > MAX_ART_REFERENCE_BYTES) return;
     const next = [
       ...existing,
       { id: crypto.randomUUID(), dataUrl: compressed, createdAt: Date.now() },
@@ -134,8 +139,7 @@ function Index() {
   const [online, setOnline] = useState(() =>
     typeof navigator === "undefined" ? true : navigator.onLine,
   );
-  const [installEvent, setInstallEvent] =
-    useState<BeforeInstallPromptEvent | null>(null);
+  const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -177,10 +181,9 @@ function Index() {
           const recent = all.slice(-1);
           const pool = all.slice(0, -1);
           const shuffled = [...pool].sort(() => Math.random() - 0.5);
-          const sample = [
-            ...recent,
-            ...shuffled.slice(0, Math.max(0, ARTS_SAMPLE_PER_REQUEST - 1)),
-          ].map((a) => a.dataUrl);
+          const sample = [...recent, ...shuffled.slice(0, Math.max(0, ARTS_SAMPLE_PER_REQUEST - 1))]
+            .map((a) => a.dataUrl)
+            .filter((dataUrl) => dataUrl.length <= MAX_ART_REFERENCE_BYTES);
 
           return {
             body: {
@@ -224,11 +227,7 @@ function Index() {
         for (const part of m.parts) {
           if (part.type === "tool-gerar_arte_glorex") {
             const p = part as unknown as ArtePart;
-            if (
-              p.state === "output-available" &&
-              p.output?.ok &&
-              p.output.imageDataUrl
-            ) {
+            if (p.state === "output-available" && p.output?.ok && p.output.imageDataUrl) {
               const before = loadArts().length;
               await saveArt(p.output.imageDataUrl);
               const after = loadArts().length;
@@ -360,10 +359,7 @@ function Index() {
         )}
       </header>
 
-      <main
-        ref={scrollRef}
-        className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6"
-      >
+      <main ref={scrollRef} className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6">
         {messages.length === 0 ? <EmptyState /> : null}
 
         <div className="space-y-6">
@@ -435,12 +431,10 @@ function EmptyState() {
       <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-primary/15">
         <Sparkles className="h-7 w-7 text-primary" />
       </div>
-      <h2 className="mb-1 text-xl font-semibold text-foreground">
-        Olá! Eu sou a I.A GX 👋
-      </h2>
+      <h2 className="mb-1 text-xl font-semibold text-foreground">Olá! Eu sou a I.A GX 👋</h2>
       <p className="mb-6 max-w-md text-sm text-muted-foreground">
-        Me conte os detalhes da rodada (dia, horários, valores das séries, bola do
-        dia e prêmios) e eu monto a arte do Novo Glorex pra você.
+        Me conte os detalhes da rodada (dia, horários, valores das séries, bola do dia e prêmios) e
+        eu monto a arte do Novo Glorex pra você.
       </p>
       <div className="grid w-full max-w-md gap-2 text-left text-sm">
         <ExampleCard text="Sexta, dia 15. Abertura 18:30. 19h série de 500 a 4 reais. 20:30 kit churrasco e airfryer. 21:30 jogada de 3.000. Bola do dia 15, prêmio bingo 1.900." />
@@ -489,11 +483,7 @@ function MessageBubble({ message }: { message: UIMessage }) {
 
 type ArtePart = {
   type: "tool-gerar_arte_glorex";
-  state:
-    | "input-streaming"
-    | "input-available"
-    | "output-available"
-    | "output-error";
+  state: "input-streaming" | "input-available" | "output-available" | "output-error";
   input?: unknown;
   output?: {
     ok: boolean;
@@ -532,9 +522,7 @@ function ArteToolPart({ part }: { part: ArtePart }) {
           className="block w-full"
         />
         <div className="flex items-center justify-between border-t border-border px-3 py-2">
-          <span className="text-xs text-muted-foreground">
-            Arte gerada por I.A GX
-          </span>
+          <span className="text-xs text-muted-foreground">Arte gerada por I.A GX</span>
           <a
             href={part.output.imageDataUrl}
             download={`glorex-${Date.now()}.png`}

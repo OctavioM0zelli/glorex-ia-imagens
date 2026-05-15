@@ -1,12 +1,6 @@
 import "@tanstack/react-start";
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  convertToModelMessages,
-  stepCountIs,
-  streamText,
-  tool,
-  type UIMessage,
-} from "ai";
+import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import { z } from "zod";
 
 import { createLovableAiGatewayProvider } from "@/lib/ai-gateway";
@@ -25,13 +19,15 @@ Seu trabalho:
 
 // Limites de payload para evitar payloads gigantes que quebram o gateway
 const MAX_ARTES_GERADAS = 5;
-const MAX_ART_DATAURL_LENGTH = 1_500_000; // ~1.1MB base64 por imagem
+const MAX_ART_DATAURL_LENGTH = 900_000; // margem segura abaixo do limite do gateway
 const GATEWAY_TIMEOUT_MS = 60_000;
 
 const RequestSchema = z.object({
   messages: z.array(z.any()).min(1).max(500),
   artesGeradas: z
-    .array(z.string().max(MAX_ART_DATAURL_LENGTH))
+    // Não rejeita a requisição inteira se uma arte antiga vier grande demais;
+    // filtramos abaixo para manter o chat funcionando.
+    .array(z.string())
     .max(MAX_ARTES_GERADAS)
     .optional()
     .default([]),
@@ -60,20 +56,17 @@ async function fetchGatewayWithRetry(opts: {
     const timer = setTimeout(() => controller.abort(), GATEWAY_TIMEOUT_MS);
     const startedAt = Date.now();
     try {
-      const res = await fetch(
-        "https://ai.gateway.lovable.dev/v1/chat/completions",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Lovable-API-Key": apiKey,
-            "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-            "X-Request-Id": requestId,
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Lovable-API-Key": apiKey,
+          "X-Lovable-AIG-SDK": "vercel-ai-sdk",
+          "X-Request-Id": requestId,
         },
-      );
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
       clearTimeout(timer);
       logEvent({
         kind: "gateway",
@@ -85,9 +78,7 @@ async function fetchGatewayWithRetry(opts: {
       // Retry apenas em 429 e 5xx
       if (res.status === 429 || res.status >= 500) {
         if (attempt < maxAttempts) {
-          await new Promise((r) =>
-            setTimeout(r, 500 * Math.pow(2, attempt - 1)),
-          );
+          await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt - 1)));
           continue;
         }
       }
@@ -115,8 +106,7 @@ export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        const requestId =
-          request.headers.get("x-request-id") ?? crypto.randomUUID();
+        const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
         const apiKey = process.env.LOVABLE_API_KEY;
         if (!apiKey) {
           logEvent({ kind: "error", requestId, code: "missing-api-key" });
@@ -137,17 +127,16 @@ export const Route = createFileRoute("/api/chat")({
             code: "bad-request",
             error: detail,
           });
-          return new Response(
-            `Requisição inválida (id: ${requestId}). ${detail.slice(0, 200)}`,
-            {
-              status: 400,
-              headers: { "X-Request-Id": requestId },
-            },
-          );
+          return new Response(`Requisição inválida (id: ${requestId}). ${detail.slice(0, 200)}`, {
+            status: 400,
+            headers: { "X-Request-Id": requestId },
+          });
         }
 
         const messages = parsed.messages as UIMessage[];
-        const artesGeradas = parsed.artesGeradas ?? [];
+        const artesGeradas = (parsed.artesGeradas ?? []).filter(
+          (arte) => arte.length <= MAX_ART_DATAURL_LENGTH,
+        );
         const origin = new URL(request.url).origin;
         const gateway = createLovableAiGatewayProvider(apiKey);
         const chatModel = gateway("google/gemini-3-flash-preview");
@@ -159,19 +148,16 @@ export const Route = createFileRoute("/api/chat")({
           kind: "chat-start",
           requestId,
           messageCount: messages.length,
-          previousArtsBytes: previousArts.reduce(
-            (acc, a) => acc + a.length,
-            0,
-          ),
+          receivedArts: parsed.artesGeradas?.length ?? 0,
+          acceptedArts: previousArts.length,
+          previousArtsBytes: previousArts.reduce((acc, a) => acc + a.length, 0),
         });
 
         const gerarArte = tool({
           description:
             "Gera a arte promocional do Novo Glorex Presencial usando Nano Banana 2, com fundo branco, detalhes laranja-amarelados e a logo Novo Glorex. Use quando o usuário tiver fornecido dados suficientes.",
           inputSchema: z.object({
-            dia: z
-              .string()
-              .describe("Dia da semana e/ou data, ex: 'Sexta — dia 15'."),
+            dia: z.string().describe("Dia da semana e/ou data, ex: 'Sexta — dia 15'."),
             abertura: z.string().describe("Horário de abertura, ex: '18:30'."),
             jogadas: z
               .array(
@@ -185,17 +171,12 @@ export const Route = createFileRoute("/api/chat")({
                 }),
               )
               .min(1),
-            bolaDoDia: z
-              .string()
-              .describe("Número e/ou descrição da bola do dia."),
+            bolaDoDia: z.string().describe("Número e/ou descrição da bola do dia."),
             premioBingo: z
               .string()
               .optional()
               .describe("Prêmio extra para quem bater bingo na bola do dia."),
-            slogan: z
-              .string()
-              .default("NÃO PERCAM, BOA SORTE!!!")
-              .describe("Slogan final."),
+            slogan: z.string().default("NÃO PERCAM, BOA SORTE!!!").describe("Slogan final."),
             observacoes: z
               .string()
               .optional()
@@ -235,14 +216,11 @@ VARIAÇÃO OBRIGATÓRIA (muito importante):
 
 Devolva APENAS a imagem final, sem texto extra.`;
 
-            const shuffled = [...refs.templates].sort(
-              () => Math.random() - 0.5,
-            );
+            const shuffled = [...refs.templates].sort(() => Math.random() - 0.5);
             const sampledTemplates = shuffled.slice(0, 2);
 
             const userContent: Array<
-              | { type: "text"; text: string }
-              | { type: "image_url"; image_url: { url: string } }
+              { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
             > = [
               { type: "text", text: promptText },
               { type: "image_url", image_url: { url: refs.logo.dataUrl } },
@@ -304,8 +282,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
                 }>;
               };
 
-              const imageUrl =
-                data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+              const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
 
               if (!imageUrl) {
                 logEvent({
