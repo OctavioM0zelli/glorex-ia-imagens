@@ -1,44 +1,66 @@
-# I.A GX — Construtor de Artes Glorex Prêmios
+# Expandir base de referência da I.A GX
 
-Site de uma página com chat onde o usuário descreve a programação do dia (horários, valores, bola do dia, prêmios) e a "I.A GX" gera automaticamente uma arte promocional no estilo Novo Glorex usando o modelo Nano Banana (Gemini image), com fundo branco e detalhes laranja-amarelados, sempre incluindo a logo enviada.
+## O que muda
 
-## Escopo
+**1. Novos templates (6 imagens) como referência fixa**
 
-- 1 página (`/`) com a logo Novo Glorex no topo, título "I.A GX — Construtor de Artes" e a interface de chat ocupando o restante.
-- Chat livre em português, conversa única persistida em `localStorage` (apenas no navegador do usuário).
-- Botão "Nova conversa" para limpar o histórico.
-- Cada mensagem do bot pode conter texto (perguntas de refinamento) e/ou uma imagem gerada (a arte). Imagens vêm com botão de Download.
-- Visual do site: fundo branco, acentos em laranja-amarelado (`#F5A623` / `#FFB800`), tipografia limpa — alinhado ao espírito do material Glorex sem competir com a arte gerada.
+Copiar para `public/glorex/` e `src/assets/`:
+- `template-quarta.png` (azul/verde)
+- `template-domingo.png` (amarelo)
+- `template-terca.png` (laranja/azul)
+- `template-quinta.png` (vermelho/preto)
+- `template-sexta-v2.png` (vermelho/azul) — substitui ou complementa a antiga
+- `template-terca-premiada.png` (dourado/preto)
 
-## Como a IA funciona
+Total: 8 templates + logo Novo Glorex sempre enviados como referência ao Nano Banana 2.
 
-- O chat usa AI SDK + Lovable AI Gateway (`google/gemini-3-flash-preview`) para conversa e refinamento do briefing.
-- Quando o usuário fornece os dados da arte (ou pede explicitamente "gerar arte"), o backend chama uma tool `gerar_arte_glorex` que:
-  1. Monta um prompt detalhado em português descrevendo: layout vertical estilo flyer, fundo branco com detalhes laranja/amarelo, blocos para horários e valores, destaque da bola do dia, ícones de churrasco/cerveja/airfryer/picanha quando mencionados, slogan "NÃO PERCAM, BOA SORTE!".
-  2. Chama o modelo de imagem `google/gemini-3.1-flash-image-preview` (Nano Banana 2) passando como referências visuais: a **logo Novo Glorex** (obrigatória em todas as artes) + as artes-template enviadas (sexta e sábado) + qualquer imagem extra que o usuário enviar depois.
-  3. Retorna a imagem gerada (base64/PNG) que aparece dentro da mensagem do assistente.
-- O system prompt da IA estabelece a persona "I.A GX", regras (sempre confirmar dados antes de gerar, sempre incluir logo, paleta fixa) e perguntas-padrão (data, horário de abertura, jogadas com hora+valor, bola do dia, prêmios extras, brindes).
+**2. Memória de gerações no navegador**
 
-## Upload de novas artes-template
+Cada arte que a I.A GX gerar é salva em `localStorage` (key `glorex-generated-arts`, base64 + resumo). Nas próximas gerações, essas artes são enviadas junto com os templates fixos como referências adicionais — a I.A "aprende" com o próprio histórico do usuário.
 
-- Os assets iniciais (`logo_novo_glorex.png` + as 2 artes enviadas) ficam em `src/assets/` e são embutidos como referência fixa em toda chamada de geração.
-- Quando você enviar mais artes via chat (próximas mensagens), eu adiciono ao mesmo diretório e elas passam a ser referência também — sem necessidade de upload pelo usuário final.
+Limite: últimas 10 gerações (evitar payload gigante).
+
+Botão "Limpar memória de artes" no header (ao lado de Nova conversa).
+
+**3. Variação obrigatória em cada arte**
+
+Atualizar o prompt do tool `gerar_arte_glorex` para instruir explicitamente:
+- Variar paleta dentro do branco + laranja-amarelado (tons quentes, gradientes diferentes a cada arte)
+- Variar disposição dos blocos de horário/valor (alinhamento, tamanho, cantos)
+- Variar elementos decorativos (estrelas, moedas, brilhos, fitas, ícones)
+- **Nunca** replicar exatamente um template — usar como referência de estrutura e energia, não copiar
+- Logo Novo Glorex permanece intacto e sempre presente
+- Layout vertical 1024x1536, fundo branco predominante, detalhes laranja-amarelados
+
+**4. Nunca alterar o que o usuário envia**
+
+Se o usuário anexar uma arte/imagem na conversa (futuro), ela vai como referência mas o prompt diz claramente para preservar identidade visual da imagem do usuário.
+
+## Arquivos alterados
+
+- `public/glorex/` + `src/assets/` — adicionar 6 PNGs
+- `src/lib/glorex-references.server.ts` — listar os 8 templates + logo, aceitar `extraReferences: string[]` (data URLs vindas do client)
+- `src/routes/api/chat.ts` — tool aceita `referenciasAdicionais` no inputSchema (data URLs das gerações anteriores), passa todas para o Nano Banana 2; prompt atualizado com regras de variação
+- `src/routes/index.tsx` — salvar cada `imageDataUrl` gerado em `localStorage`, ler ao mandar mensagem e injetar via `body` do `useChat` no transport; botão "Limpar memória"
 
 ## Detalhes técnicos
 
-- **Stack**: TanStack Start (já configurado), AI SDK (`ai`, `@ai-sdk/react`, `@ai-sdk/openai-compatible`), AI Elements (`conversation`, `message`, `prompt-input`, `shimmer`, `tool`), Lovable AI Gateway.
-- **Backend**: server route `src/routes/api/chat.ts` com `streamText` + tool `gerar_arte_glorex` (`stepCountIs(50)`). A tool faz `fetch` direto ao endpoint `/chat/completions` do gateway com modelo de imagem e referências em base64, retornando `{ imageDataUrl }`.
-- **Frontend**: `src/routes/index.tsx` renderiza header com logo + chat. `useChat` com `id` fixo (`"glorex-chat"`), mensagens carregadas/persistidas em `localStorage` via `onFinish` e bootstrap idempotente. Render por `message.parts` (texto, tool-call em accordion fechado, tool-result com `<img>` da arte + botão download).
-- **Assets de referência**: lidos em build como base64 via import `?url` + fetch no servidor, ou pré-codificados em um módulo `src/lib/glorex-references.server.ts`.
-- **Empty state**: card com a logo e exemplos de prompt ("Sexta, abertura 18:30, 19h série de 500…").
-- **Erros**: toasts para 429 (limite) e 402 (créditos).
+```
+localStorage:
+  glorex-chat-messages          (já existe)
+  glorex-generated-arts         (novo: [{ id, dataUrl, resumo, createdAt }])
+```
 
-## Passos de implementação
+Transport:
+```ts
+new DefaultChatTransport({
+  api: "/api/chat",
+  body: () => ({ artesGeradas: loadGeneratedArts().slice(-10).map(a => a.dataUrl) }),
+})
+```
 
-1. Habilitar Lovable Cloud (necessário para `LOVABLE_API_KEY` do gateway).
-2. Copiar `logo_novo_glorex.png` e as 2 artes-template para `src/assets/` e criar módulo server-only com elas em base64.
-3. Definir tokens de cor (laranja/amarelo Glorex) em `src/styles.css`.
-4. Instalar AI SDK + AI Elements (`conversation`, `message`, `prompt-input`, `shimmer`, `tool`).
-5. Criar `src/lib/ai-gateway.ts` (provider helper) e `src/routes/api/chat.ts` com `streamText` + tool `gerar_arte_glorex`.
-6. Implementar `src/routes/index.tsx`: header com logo, chat persistido em localStorage, render de imagens geradas com download, botão "Nova conversa", input focado por padrão.
-7. Verificação: gerar duas artes diferentes (ex.: sexta com churrasco/airfryer e sábado com caixa de picanha), conferir presença da logo, fundo branco e paleta laranja/amarelo.
+No server, `artesGeradas` chega no body, é repassado ao tool via closure e concatenado às `images` enviadas ao endpoint do Nano Banana 2 (logo + 8 templates + até 10 gerações anteriores).
+
+## Resultado
+
+Toda nova arte gerada terá: logo Novo Glorex, fundo branco com laranja-amarelado, layout vertical, variação de cor/disposição/elementos a cada geração, e memória crescente que faz a I.A entender o estilo do usuário com o uso.
