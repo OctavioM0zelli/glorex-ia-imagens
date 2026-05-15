@@ -117,13 +117,49 @@ async function saveArt(dataUrl: string) {
   }
 }
 
+type BeforeInstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+};
+
 function Index() {
   const [initial] = useState<UIMessage[]>(loadInitial);
   const [resetKey, setResetKey] = useState(0);
   const [input, setInput] = useState("");
   const [artsCount, setArtsCount] = useState(() => loadArts().length);
+  const [online, setOnline] = useState(() =>
+    typeof navigator === "undefined" ? true : navigator.onLine,
+  );
+  const [installEvent, setInstallEvent] =
+    useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Online/offline + install prompt listeners
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    const onBip = (e: Event) => {
+      e.preventDefault();
+      setInstallEvent(e as BeforeInstallPromptEvent);
+    };
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("beforeinstallprompt", onBip);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("beforeinstallprompt", onBip);
+    };
+  }, []);
+
+  const handleInstall = async () => {
+    if (!installEvent) return;
+    await installEvent.prompt();
+    await installEvent.userChoice.catch(() => {});
+    setInstallEvent(null);
+  };
 
   const transport = useMemo(
     () =>
