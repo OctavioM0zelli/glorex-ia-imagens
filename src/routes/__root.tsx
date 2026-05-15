@@ -120,9 +120,43 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!("serviceWorker" in navigator)) return;
+
+    // Detecta iframe (preview do editor) e hosts de preview do Lovable
+    let inIframe = false;
+    try {
+      inIframe = window.self !== window.top;
+    } catch {
+      inIframe = true;
+    }
+    const host = window.location.hostname;
+    const isPreviewHost =
+      host.includes("id-preview--") ||
+      host.includes("lovableproject.com") ||
+      host.endsWith("-dev.lovable.app") ||
+      host === "localhost" ||
+      host === "127.0.0.1";
+
+    if (inIframe || isPreviewHost) {
+      // Em preview/iframe: garante que nenhum SW antigo continue ativo
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((rs) => rs.forEach((r) => r.unregister()))
+        .catch(() => {});
+      return;
+    }
+
+    navigator.serviceWorker.register("/sw.js").catch((err) => {
+      console.warn("SW register failed:", err);
+    });
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <Outlet />
     </QueryClientProvider>
   );
 }
+
