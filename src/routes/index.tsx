@@ -236,7 +236,7 @@ function MessageBubble({ message }: { message: UIMessage }) {
             );
           }
           if (part.type === "tool-gerar_arte_glorex") {
-            return <ArteToolPart key={i} part={part} />;
+            return <ArteToolPart key={i} part={part as unknown as ArtePart} />;
           }
           return null;
         })}
