@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Loader2, Send, Sparkles, Trash2 } from "lucide-react";
+import { Download, Download as DownloadIcon, Loader2, Send, Sparkles, Trash2, WifiOff } from "lucide-react";
 
 import logo from "@/assets/logo-novo-glorex.png";
 import { Button } from "@/components/ui/button";
