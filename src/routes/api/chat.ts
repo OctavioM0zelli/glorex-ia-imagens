@@ -25,13 +25,15 @@ Seu trabalho:
 
 // Limites de payload para evitar payloads gigantes que quebram o gateway
 const MAX_ARTES_GERADAS = 5;
-const MAX_ART_DATAURL_LENGTH = 1_500_000; // ~1.1MB base64 por imagem
+const MAX_ART_DATAURL_LENGTH = 900_000; // margem segura abaixo do limite do gateway
 const GATEWAY_TIMEOUT_MS = 60_000;
 
 const RequestSchema = z.object({
   messages: z.array(z.any()).min(1).max(500),
   artesGeradas: z
-    .array(z.string().max(MAX_ART_DATAURL_LENGTH))
+    // Não rejeita a requisição inteira se uma arte antiga vier grande demais;
+    // filtramos abaixo para manter o chat funcionando.
+    .array(z.string())
     .max(MAX_ARTES_GERADAS)
     .optional()
     .default([]),
@@ -147,7 +149,9 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         const messages = parsed.messages as UIMessage[];
-        const artesGeradas = parsed.artesGeradas ?? [];
+        const artesGeradas = (parsed.artesGeradas ?? []).filter(
+          (arte) => arte.length <= MAX_ART_DATAURL_LENGTH,
+        );
         const origin = new URL(request.url).origin;
         const gateway = createLovableAiGatewayProvider(apiKey);
         const chatModel = gateway("google/gemini-3-flash-preview");
@@ -159,6 +163,8 @@ export const Route = createFileRoute("/api/chat")({
           kind: "chat-start",
           requestId,
           messageCount: messages.length,
+          receivedArts: parsed.artesGeradas?.length ?? 0,
+          acceptedArts: previousArts.length,
           previousArtsBytes: previousArts.reduce(
             (acc, a) => acc + a.length,
             0,
