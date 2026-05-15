@@ -28,6 +28,25 @@ const MAX_ARTS = 10;
 
 type StoredArt = { id: string; dataUrl: string; createdAt: number };
 
+function sanitizeMessagesForApi(messages: UIMessage[]): UIMessage[] {
+  return messages.map((message) => ({
+    ...message,
+    parts: message.parts.map((part) => {
+      if (part.type !== "tool-gerar_arte_glorex") return part;
+      const artePart = part as unknown as ArtePart;
+      if (!artePart.output?.imageDataUrl) return part;
+      return {
+        ...part,
+        output: {
+          ...artePart.output,
+          imageDataUrl: undefined,
+          imagemGerada: true,
+        },
+      };
+    }),
+  }));
+}
+
 function loadInitial(): UIMessage[] {
   if (typeof window === "undefined") return [];
   try {
@@ -78,8 +97,10 @@ function Index() {
         prepareSendMessagesRequest: ({ messages, body }) => ({
           body: {
             ...body,
-            messages,
-            artesGeradas: loadArts().map((a) => a.dataUrl),
+            messages: sanitizeMessagesForApi(messages),
+            artesGeradas: loadArts()
+              .slice(-1)
+              .map((a) => a.dataUrl),
           },
         }),
       }),
