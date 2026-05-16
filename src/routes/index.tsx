@@ -275,19 +275,8 @@ function Index() {
     setResetKey((k) => k + 1);
   };
 
-  const handleClearArts = () => {
-    if (typeof window === "undefined") return;
-    const ok = window.confirm(
-      "Apagar a memória de estilo? A I.A GX vai gerar a próxima arte sem se basear nas anteriores.",
-    );
-    if (!ok) return;
-    try {
-      window.localStorage.removeItem(ARTS_KEY);
-    } catch {
-      /* ignore */
-    }
-    setArtsCount(0);
-  };
+  const handleClearArts = undefined;
+  void handleClearArts;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
