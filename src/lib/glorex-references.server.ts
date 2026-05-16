@@ -24,21 +24,21 @@ async function fetchAsset(origin: string, file: string, mime: string): Promise<R
 
 export async function getGlorexReferences(origin: string) {
   if (cached) return cached;
-  const [logo, sexta, sabado, quarta, domingo, terca, quinta, sextaV2, tercaPremiada] =
-    await Promise.all([
-      fetchAsset(origin, "ref-logo-novo-glorex.png", "image/png"),
-      fetchAsset(origin, "ref-template-sexta.jpg", "image/jpeg"),
-      fetchAsset(origin, "ref-template-sabado.jpg", "image/jpeg"),
-      fetchAsset(origin, "ref-template-quarta.jpg", "image/jpeg"),
-      fetchAsset(origin, "ref-template-domingo.jpg", "image/jpeg"),
-      fetchAsset(origin, "ref-template-terca.jpg", "image/jpeg"),
-      fetchAsset(origin, "ref-template-quinta.jpg", "image/jpeg"),
-      fetchAsset(origin, "ref-template-sexta-v2.jpg", "image/jpeg"),
-      fetchAsset(origin, "ref-template-terca-premiada.jpg", "image/jpeg"),
-    ]);
+  // Apenas as 6 PRIMEIRAS artes de referência enviadas pelo usuário.
+  // Não adicionar mais referências aqui — a evolução do estilo vem dos
+  // ajustes que o usuário pedir no chat, não de mais templates.
+  const [logo, sexta, sabado, quarta, domingo, terca, quinta] = await Promise.all([
+    fetchAsset(origin, "ref-logo-novo-glorex.png", "image/png"),
+    fetchAsset(origin, "ref-template-sexta.jpg", "image/jpeg"),
+    fetchAsset(origin, "ref-template-sabado.jpg", "image/jpeg"),
+    fetchAsset(origin, "ref-template-quarta.jpg", "image/jpeg"),
+    fetchAsset(origin, "ref-template-domingo.jpg", "image/jpeg"),
+    fetchAsset(origin, "ref-template-terca.jpg", "image/jpeg"),
+    fetchAsset(origin, "ref-template-quinta.jpg", "image/jpeg"),
+  ]);
   cached = {
     logo,
-    templates: [sexta, sabado, quarta, domingo, terca, quinta, sextaV2, tercaPremiada],
+    templates: [sexta, sabado, quarta, domingo, terca, quinta],
   };
   return cached;
 }
