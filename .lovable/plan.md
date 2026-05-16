@@ -1,32 +1,33 @@
 ## Objetivo
-Gerar artes em **1080×1920** usando **`gemini-3-pro-image-preview`** em vez do Nano Banana atual.
+
+Dar ao usuário controle sobre a geração:
+1. **Parar** — interromper enquanto a I.A está gerando (texto ou arte).
+2. **Gerar novamente** — refazer a última arte com o mesmo briefing, sem precisar redigitar.
 
 ## Mudanças
 
 ### 1. `src/routes/api/chat.ts`
-- `GOOGLE_IMAGE_MODEL`: `"gemini-2.5-flash-image"` → `"gemini-3-pro-image-preview"`.
-- `GOOGLE_TIMEOUT_MS`: `90_000` → `150_000` (Pro é mais lento).
-- Em `callGoogleImage`, o body passa a incluir:
-  ```ts
-  generationConfig: {
-    responseModalities: ["IMAGE", "TEXT"],
-    imageConfig: { aspectRatio: "9:16" },
-  }
-  ```
-- No `promptText` da tool, trocar menção `1024x1536` por `1080x1920 (proporção 9:16)`.
+- Passar `abortSignal: request.signal` para `streamText` — sem isso, mesmo o usuário "parando" no front, o servidor continua rodando o loop de tools (e queimando cota do Google + tempo de resposta de imagem).
 
 ### 2. `src/routes/index.tsx`
-- Adicionar helper `resizeDataUrlToExact(dataUrl, 1080, 1920)`:
-  - Carrega a imagem via `<img>` + `decode()`.
-  - Cria canvas 1080×1920, desenha com `drawImage` cobrindo todo o canvas (cover, centralizado).
-  - Exporta PNG via `canvas.toDataURL("image/png")`.
-- No `useEffect` que processa novas artes (`messages` change):
-  - Antes de `saveArt(...)`, redimensionar `imageDataUrl` para 1080×1920.
-  - Atualizar a parte da mensagem (via `setMessages`) com o novo dataURL para que o `<img>` e o link de Download usem a versão final 1080×1920.
-- Atualizar texto do loader: "Gerando arte com Nano Banana 2..." → "Gerando arte com Gemini 3 Pro Image (1080×1920)...".
 
-### Out of scope
-Sem alteração em banco, auth, ou na lógica de variação de paleta/fundo.
+**Stop:**
+- Extrair `stop` de `useChat`.
+- No formulário (botão de envio), quando `isLoading` for `true`, trocar o ícone `Send`/`Loader2` por um ícone de parar (`Square` do lucide) com `type="button"` e `onClick={stop}`. Tooltip "Parar geração".
+- Mostrar o botão Parar desde `status === "submitted"` (antes do primeiro token), não só durante `streaming` — assim dá pra cancelar a chamada de imagem (que demora até 2 min) imediatamente.
 
-### Risco
-Se a chave gratuita do Google AI Studio do usuário não tiver acesso ao preview, o card de erro categorizado (`model_not_found` / `permission`) já mostrará isso claramente — sem regressão silenciosa.
+**Gerar novamente:**
+- Adicionar botão "Gerar novamente" no card da arte (`ArteToolPart`), ao lado de "Apagar" e "Baixar".
+- Ao clicar:
+  - Procurar, nas mensagens anteriores, a última mensagem do usuário que veio antes desta arte (briefing original).
+  - Chamar `sendMessage({ text: "Gere novamente a mesma arte, com nova variação de paleta e layout. Briefing: <texto da última mensagem do usuário>" })`.
+  - Desabilitar o botão enquanto `isLoading`.
+- Ficar visível apenas em artes com `output.ok === true` (sucesso).
+
+## Out of scope
+- Não mexer em persistência (o `useChat` já mantém as partes parciais em memória; ao parar no meio de uma arte, o card de loading some e o usuário pode digitar de novo).
+- Sem retry automático em falha — só botão manual disparado pelo usuário.
+- Sem mudança no design tokens / paleta.
+
+## Risco
+Baixo. `stop()` é API nativa do `useChat`. O `abortSignal` pode demorar alguns segundos pra abortar a chamada do Google se ela já estiver em flight (o `fetch` interno respeita o signal, então o timeout efetivo cai).
