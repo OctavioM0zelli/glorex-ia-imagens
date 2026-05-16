@@ -359,11 +359,43 @@ function Index() {
   const isLoading = status === "submitted" || status === "streaming";
   const visibleMessages = hydrated ? messages : [];
 
+  // Cooldown após 429 (cota / rate limit) para não desperdiçar novas tentativas.
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (cooldownUntil <= now) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [cooldownUntil, now]);
+  const cooldownSecs = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
+  const inCooldown = cooldownSecs > 0;
+
+  useEffect(() => {
+    if (!error) return;
+    if (/429|too many|limite de requisi|rate/i.test(error.message || "")) {
+      setCooldownUntil(Date.now() + 60_000);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    for (const m of messages) {
+      for (const p of m.parts) {
+        if (p.type !== "tool-gerar_arte_glorex") continue;
+        const pp = p as unknown as ArtePart;
+        if (pp.output?.category === "quota") {
+          setCooldownUntil((prev) => Math.max(prev, Date.now() + 60_000));
+          return;
+        }
+      }
+    }
+  }, [messages]);
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const text = input.trim();
     if (!text || isLoading) return;
     if (!online) return;
+    if (inCooldown) return;
     setInput("");
     await sendMessage({ text });
   };
@@ -446,6 +478,16 @@ function Index() {
             Sem conexão — a geração de artes está pausada até voltar a internet.
           </div>
         )}
+        {inCooldown && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-center gap-2 bg-amber-500/10 px-4 py-1.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+          >
+            <Gauge className="h-3.5 w-3.5" />
+            Limite de requisições atingido — aguarde {cooldownSecs}s antes de tentar de novo.
+          </div>
+        )}
       </header>
 
       <main ref={scrollRef} className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6">
@@ -456,8 +498,9 @@ function Index() {
             <MessageBubble
               key={m.id}
               message={m}
-              canRegenerate={!isLoading && online}
+              canRegenerate={!isLoading && online && !inCooldown}
               onRegenerate={() => {
+                if (inCooldown) return;
                 // Acha a última mensagem do user antes desta mensagem com arte
                 let briefing = "";
                 for (let i = idx - 1; i >= 0; i--) {
@@ -553,10 +596,16 @@ function Index() {
           ) : (
             <Button
               type="submit"
-              disabled={!input.trim() || !online}
+              disabled={!input.trim() || !online || inCooldown}
               size="icon"
               className="h-11 w-11 shrink-0"
-              title={!online ? "Sem conexão" : undefined}
+              title={
+                !online
+                  ? "Sem conexão"
+                  : inCooldown
+                    ? `Aguarde ${cooldownSecs}s (limite atingido)`
+                    : undefined
+              }
             >
               <Send className="h-4 w-4" />
             </Button>

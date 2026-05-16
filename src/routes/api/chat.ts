@@ -486,7 +486,8 @@ Devolva APENAS a imagem final, sem texto extra.`;
           system: SYSTEM_PROMPT,
           messages: await convertToModelMessages(messages),
           tools: { gerar_arte_glorex: gerarArte },
-          stopWhen: stepCountIs(50),
+          stopWhen: stepCountIs(8),
+          maxRetries: 0,
           abortSignal: request.signal,
         });
 
@@ -497,14 +498,13 @@ Devolva APENAS a imagem final, sem texto extra.`;
             "X-Content-Type-Options": "nosniff",
           },
           onError: (error) => {
-            logEvent({
-              kind: "stream-error",
-              requestId,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            return error instanceof Error
-              ? `${error.message} (id: ${requestId})`
-              : `Erro desconhecido (id: ${requestId})`;
+            const raw = error instanceof Error ? error.message : String(error);
+            logEvent({ kind: "stream-error", requestId, error: raw });
+            const isRate = /429|too many requests|rate/i.test(raw);
+            if (isRate) {
+              return `Limite de requisições do Google atingido no chat de texto (gemini-2.5-flash). Aguarde ~1 min e tente de novo. (id: ${requestId})`;
+            }
+            return `${raw} (id: ${requestId})`;
           },
         });
       },
