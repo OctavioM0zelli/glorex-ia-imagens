@@ -797,19 +797,20 @@ function ArteToolPart({
           decoding="async"
           className="block w-full"
         />
-        <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
-          <span className="text-xs text-muted-foreground">Arte gerada por I.A GX</span>
-          <div className="flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-3 py-2">
+          <span className="hidden text-xs text-muted-foreground sm:inline">Arte gerada por I.A GX</span>
+          <div className="flex w-full items-center justify-end gap-1.5 sm:w-auto">
             {onRegenerate && (
               <button
                 type="button"
                 onClick={onRegenerate}
                 disabled={!canRegenerate}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-2 text-xs font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50 sm:py-1.5"
                 title="Gerar novamente com nova variação"
+                aria-label="Gerar novamente"
               >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Gerar novamente
+                <RefreshCw className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <span className="hidden sm:inline">Gerar novamente</span>
               </button>
             )}
             {onDelete && (
@@ -820,19 +821,20 @@ function ArteToolPart({
                     onDelete(url);
                   }
                 }}
-                className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20"
+                className="inline-flex items-center gap-1.5 rounded-md bg-destructive px-2.5 py-2 text-xs font-medium text-destructive-foreground hover:bg-destructive/90 sm:py-1.5"
                 title="Apagar esta arte"
+                aria-label="Apagar esta arte"
               >
-                <Trash2 className="h-3.5 w-3.5" />
-                Apagar
+                <Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" />
+                <span className="hidden sm:inline">Apagar</span>
               </button>
             )}
             <a
               href={url}
               download={`glorex-${Date.now()}.png`}
-              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"
             >
-              <Download className="h-3.5 w-3.5" />
+              <Download className="h-4 w-4" />
               Baixar
             </a>
           </div>
