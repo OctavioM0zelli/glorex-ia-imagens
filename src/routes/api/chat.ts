@@ -406,7 +406,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
                 : `Falha de rede ao chamar o Google (${errMsg.slice(0, 120)}). Verifique conexão / DNS.`;
               return {
                 ok: false as const,
-                category: (isAbort ? "timeout" : "network") as const,
+                category: isAbort ? ("timeout" as const) : ("network" as const),
                 error: userMsg,
                 requestId,
               };
