@@ -51,13 +51,15 @@ type GoogleImagePart =
   | { text: string }
   | { inline_data: { mime_type: string; data: string } };
 
-async function callGoogleImage(opts: {
+async function callGoogleImageOnce(opts: {
   apiKey: string;
   parts: GoogleImagePart[];
   requestId: string;
+  model: string;
+  attempt: number;
 }): Promise<Response> {
-  const { apiKey, parts, requestId } = opts;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_IMAGE_MODEL}:generateContent?key=${encodeURIComponent(
+  const { apiKey, parts, requestId, model, attempt } = opts;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
     apiKey,
   )}`;
 
@@ -83,6 +85,8 @@ async function callGoogleImage(opts: {
     logEvent({
       kind: "google-image",
       requestId,
+      model,
+      attempt,
       status: res.status,
       durationMs: Date.now() - startedAt,
     });
@@ -90,6 +94,55 @@ async function callGoogleImage(opts: {
   } finally {
     clearTimeout(timer);
   }
+}
+
+// Modelo de fallback quando o principal está sobrecarregado (503/429/UNAVAILABLE).
+const GOOGLE_IMAGE_FALLBACK_MODEL = "gemini-2.5-flash-image";
+
+async function callGoogleImage(opts: {
+  apiKey: string;
+  parts: GoogleImagePart[];
+  requestId: string;
+}): Promise<Response> {
+  const { apiKey, parts, requestId } = opts;
+  const models = [GOOGLE_IMAGE_MODEL, GOOGLE_IMAGE_MODEL, GOOGLE_IMAGE_FALLBACK_MODEL];
+  let lastRes: Response | null = null;
+  for (let i = 0; i < models.length; i++) {
+    const model = models[i];
+    try {
+      const res = await callGoogleImageOnce({
+        apiKey,
+        parts,
+        requestId,
+        model,
+        attempt: i + 1,
+      });
+      // 5xx ou 429 → tenta de novo (ou cai pro fallback na última tentativa)
+      if (res.status >= 500 || res.status === 429) {
+        lastRes = res;
+        if (i < models.length - 1) {
+          await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+          continue;
+        }
+        return res;
+      }
+      return res;
+    } catch (err) {
+      logEvent({
+        kind: "google-image-throw",
+        requestId,
+        model,
+        attempt: i + 1,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (i < models.length - 1) {
+        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  return lastRes!;
 }
 
 export const Route = createFileRoute("/api/chat")({
