@@ -288,7 +288,9 @@ Devolva APENAS a imagem final, sem texto extra.`;
               let imageDataUrl: string | undefined;
               const partsOut = data.candidates?.[0]?.content?.parts ?? [];
               for (const p of partsOut) {
-                const inline = p.inlineData ?? p.inline_data;
+                const inline = (p.inlineData ?? p.inline_data) as
+                  | { mimeType?: string; mime_type?: string; data?: string }
+                  | undefined;
                 const mt = inline?.mimeType ?? inline?.mime_type;
                 const dt = inline?.data;
                 if (mt && dt) {
