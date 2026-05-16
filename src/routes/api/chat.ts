@@ -218,7 +218,7 @@ Design ultra vibrante, com iluminação NEON, brilhos intensos, sombras fortes, 
 ==============================
 IDENTIDADE VISUAL
 ==============================
-- LOGO "NOVO GLOREX PRESENCIAL" sempre em destaque no topo da arte, ocupando bastante espaço, com aparência brilhante e impactante (glow, profundidade, iluminação, integrada ao flyer). Use a PRIMEIRA imagem de referência (logo) como base — mantenha fidelidade total ao logo.
+- LOGO "NOVO GLOREX PRESENCIAL" SEMPRE posicionada no CANTO SUPERIOR ESQUERDO da arte, em tamanho PEQUENO/COMPACTO (ocupando no máximo ~15-18% da largura da arte), como uma marca-d'água/selo de identidade — NUNCA grande, NUNCA centralizada, NUNCA dominando a composição. Mantenha brilho sutil e fidelidade total ao logo original (use a PRIMEIRA imagem de referência como base). O restante do espaço do topo é livre para título do dia e demais elementos.
 
 ==============================
 PALETA DESTA GERAÇÃO
@@ -234,9 +234,9 @@ Textos ENORMES, extremamente legíveis, em NEGRITO, com aparência 3D ou semi-3D
 ==============================
 ESTRUTURA DA ARTE (em blocos)
 ==============================
-1. CABEÇALHO: logo "NOVO GLOREX PRESENCIAL" + título do dia/evento: "${input.dia}".
+1. CABEÇALHO: logo PEQUENA no canto superior ESQUERDO + título do dia/evento "${input.dia}" ocupando o centro/direita do topo em destaque gigante.
 2. FAIXA DE ABERTURA em destaque: "ABERTURA ${input.abertura}".
-3. HORÁRIOS E PREMIAÇÕES organizados em LINHAS HORIZONTAIS, com os horários SEMPRE alinhados na lateral ESQUERDA, cada horário colado exatamente ao prêmio correspondente. Cada linha com ícone de RELÓGIO ao lado do horário. NUNCA cobrir horários com caixas, textos ou imagens. Espaçamento limpo e organização perfeita:
+3. HORÁRIOS E PREMIAÇÕES organizados em LINHAS HORIZONTAIS, com os horários SEMPRE alinhados na lateral ESQUERDA, cada horário colado exatamente ao prêmio correspondente. Cada linha com ícone de RELÓGIO ao lado do horário. NUNCA cobrir horários com caixas, textos ou imagens. O TEXTO DE CADA PRÊMIO deve ser em TIPOGRAFIA 3D DESTACADA — letras em relevo, extrusão visível, contorno grosso, sombra projetada, cores metálicas/neon (dourado, branco brilhante, amarelo neon, vermelho), com glow ao redor, parecendo "saltar" da arte. Cada prêmio precisa CHAMAR A ATENÇÃO visualmente como o elemento mais importante da linha:
 ${input.jogadas.map((j) => `   ${j.horario} — ${j.descricao}`).join("\n")}
 4. DESTAQUE DA "BOLA DO DIA": bola de bingo GIGANTE altamente destacada com brilho intenso, normalmente na área central/intermediária da arte, mostrando o número "${input.bolaDoDia}".
 ${input.premioBingo ? `5. BLOCO ESPECIAL: "NAS JOGADAS ANUNCIADAS, QUEM BATER O BINGO COM A BOLA ${input.bolaDoDia}, PRÊMIO DE BINGO MAIS ${input.premioBingo}".` : ""}
