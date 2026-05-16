@@ -1,26 +1,50 @@
-Vou implementar uma melhoria focada no diagnóstico da geração de arte:
+## Objetivo
 
-1. **Padronizar erros da API de imagem**
-   - Criar uma resposta estruturada para falhas com `code`, `status`, `message`, `requestId` e detalhe técnico resumido.
-   - Tratar separadamente:
-     - `401`: chave inválida/expirada.
-     - `403`: chave sem permissão/API bloqueada/modelo indisponível para a chave.
-     - `404`: modelo ou endpoint incorreto.
-     - `429`: limite/cota atingida.
-     - timeout/fetch failed: falha de rede ou tempo excedido.
+Sempre que a geração de arte falhar, mostrar ao usuário **a causa categorizada** (referências, quota, timeout, auth, permissão, modelo, safety, rede) junto com o **requestId completo**, sem depender de o Gemini repetir o erro corretamente em texto livre.
 
-2. **Melhorar o backend em `src/routes/api/chat.ts`**
-   - Extrair o erro real retornado pelo Google (`error.message`, `error.status`, `error.code`) em vez de mostrar só “fetch failed”.
-   - Registrar logs com status, código e corpo resumido, mantendo o `requestId` para rastrear a tentativa.
-   - Fazer `toModelOutput` impedir que o assistente diga “gerei a arte” quando a tool falhou.
+## Mudanças
 
-3. **Melhorar a mensagem visível no chat em `src/routes/index.tsx`**
-   - Exibir uma caixa de erro mais clara com o status/código quando disponível.
-   - Mostrar mensagens acionáveis, por exemplo “401 — chave inválida”, “429 — cota atingida”, “404 — modelo não encontrado”.
-   - Manter o `id` da tentativa visível para depuração.
+### 1. `src/routes/api/chat.ts`
 
-4. **Corrigir a hidratação do chat discretamente**
-   - O erro atual indica que o servidor renderiza tela vazia e o cliente renderiza mensagens salvas do `localStorage` antes da hidratação terminar.
-   - Ajustarei a inicialização para carregar histórico apenas após montar no cliente, evitando mismatch de SSR.
+- Adicionar tipo `ArteErrorCategory = "references" | "quota" | "auth" | "permission" | "model_not_found" | "bad_request" | "upstream" | "safety" | "timeout" | "network" | "unknown"`.
+- Em cada `return { ok: false, ... }` da tool `gerar_arte_glorex`, incluir o campo `category` correspondente:
+  - falha de `getGlorexReferences` → `"references"`
+  - HTTP 429 → `"quota"`
+  - HTTP 401 → `"auth"`
+  - HTTP 403 → `"permission"`
+  - HTTP 404 → `"model_not_found"`
+  - HTTP 400 → `"bad_request"`
+  - HTTP 5xx → `"upstream"`
+  - resposta sem imagem → `"safety"`
+  - `AbortError` → `"timeout"`
+  - demais exceções → `"network"`
+- Atualizar `toModelOutput` para repassar a categoria ao Gemini, ex.:
+  `"A FERRAMENTA FALHOU (categoria: ${category}). NÃO diga que a arte foi gerada. Repasse ao usuário: \"${error}\""`.
 
-**Resultado esperado:** quando a arte falhar, você verá exatamente se foi chave, permissão, modelo, cota, timeout ou conexão, em vez da mensagem genérica “fetch failed”.
+### 2. `src/routes/index.tsx`
+
+- Estender o tipo `ArtePart.output` com `category?: string`.
+- Criar `CATEGORY_META`:
+  ```ts
+  const CATEGORY_META: Record<string, { label: string; icon: LucideIcon }> = {
+    references: { label: "Falha ao carregar referências da marca", icon: ImageOff },
+    quota:      { label: "Cota do Google atingida",                icon: Gauge },
+    auth:       { label: "Chave do Google inválida",               icon: KeyRound },
+    permission: { label: "Sem permissão para o modelo",            icon: Lock },
+    model_not_found: { label: "Modelo não encontrado",             icon: SearchX },
+    bad_request:{ label: "Requisição rejeitada",                   icon: AlertTriangle },
+    upstream:   { label: "Serviço do Google instável",             icon: ServerCrash },
+    safety:     { label: "Bloqueio de segurança",                  icon: ShieldAlert },
+    timeout:    { label: "Tempo esgotado",                         icon: TimerOff },
+    network:    { label: "Falha de rede",                          icon: WifiOff },
+    unknown:    { label: "Erro desconhecido",                      icon: AlertTriangle },
+  };
+  ```
+- Reescrever o card de erro (último bloco de `ArteToolPart` + o estado `output-error`) para:
+  1. Ícone + label da categoria em destaque
+  2. Mensagem detalhada (`out.error`)
+  3. Linha técnica monospace com `HTTP X · status · code · id <requestId completo>`
+- Mostrar `requestId` inteiro (remover `.slice(0, 8)`).
+
+### Out of scope
+Sem mudanças em banco, dependências, ou lógica de geração. Apenas categorização + apresentação.
