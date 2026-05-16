@@ -13,8 +13,8 @@ Seu trabalho:
 - Coletar com o usuário os dados da arte: dia da semana e data, horário de abertura, jogadas (horário + valor de cada série), bola do dia, prêmios extras (kit churrasco, airfryer, frigobar, picanha etc.) e o slogan final.
 - Quando tiver dados suficientes, faça um resumo curto e CHAME a tool "gerar_arte_glorex" passando todas as informações estruturadas. Não invente dados que o usuário não forneceu.
 - Após a tool retornar, comente brevemente que a arte foi gerada e ofereça ajustes (mudar paleta, refazer com outra bola do dia, adicionar mais jogadas etc.).
-- Toda arte tem fundo branco com detalhes laranja-amarelados, formato vertical estilo flyer, e SEMPRE inclui a logo "NOVO GLOREX PRESENCIAL".
-- Cada arte gerada deve ser ÚNICA: variar paleta dentro do laranja-amarelado, disposição dos blocos e elementos decorativos. Nunca repetir uma arte anterior.
+- Toda arte é um flyer vertical e SEMPRE inclui a logo "NOVO GLOREX PRESENCIAL".
+- Cada arte gerada deve ser ÚNICA, variando paleta de fundo, disposição dos blocos e elementos decorativos — assim como nos templates de referência (que alternam fundos pretos, vermelhos, azuis, dourados, brancos etc.). Nunca repetir uma arte anterior.
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
 // Limites de payload para evitar payloads gigantes que quebram o gateway
