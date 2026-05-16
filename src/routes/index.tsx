@@ -310,16 +310,13 @@ function Index() {
               </Button>
             )}
             {artsCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClearArts}
-                className="text-muted-foreground hover:text-foreground"
-                title="Limpa as artes que a I.A GX usa como memória de estilo"
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground"
+                title="Artes que a I.A GX usa como memória de estilo (não pode ser apagada)"
               >
-                <Sparkles className="mr-1.5 h-4 w-4" />
+                <Sparkles className="h-4 w-4 text-primary" />
                 Memória ({artsCount})
-              </Button>
+              </span>
             )}
             <Button
               variant="ghost"
