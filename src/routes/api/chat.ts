@@ -1,9 +1,9 @@
 import "@tanstack/react-start";
 import { createFileRoute } from "@tanstack/react-router";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage } from "ai";
 import { z } from "zod";
 
-import { createLovableAiGatewayProvider } from "@/lib/ai-gateway";
 import { getGlorexReferences } from "@/lib/glorex-references.server";
 
 const SYSTEM_PROMPT = `Você é a I.A GX, assistente do Novo Glorex Presencial especializada em criar artes promocionais para bingos e sorteios.
@@ -17,24 +17,22 @@ Seu trabalho:
 - Cada arte gerada deve ser ÚNICA, variando paleta de fundo, disposição dos blocos e elementos decorativos — assim como nos templates de referência (que alternam fundos pretos, vermelhos, azuis, dourados, brancos etc.). Nunca repetir uma arte anterior.
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
-// Limites de payload para evitar payloads gigantes que quebram o gateway
 const MAX_ARTES_GERADAS = 5;
-const MAX_ART_DATAURL_LENGTH = 900_000; // margem segura abaixo do limite do gateway
-const GATEWAY_TIMEOUT_MS = 60_000;
+const MAX_ART_DATAURL_LENGTH = 900_000;
+const GOOGLE_TIMEOUT_MS = 90_000;
+
+// Modelo de imagem do Google (Nano Banana). Disponível na cota gratuita
+// generosa do tier free do Google AI Studio.
+const GOOGLE_IMAGE_MODEL = "gemini-2.5-flash-image-preview";
+// Modelo de texto para o chat. Cota gratuita ~1500 req/dia.
+const GOOGLE_TEXT_MODEL = "gemini-2.5-flash";
 
 const RequestSchema = z.object({
   messages: z.array(z.any()).min(1).max(500),
-  artesGeradas: z
-    // Não rejeita a requisição inteira se uma arte antiga vier grande demais;
-    // filtramos abaixo para manter o chat funcionando.
-    .array(z.string())
-    .max(MAX_ARTES_GERADAS)
-    .optional()
-    .default([]),
+  artesGeradas: z.array(z.string()).max(MAX_ARTES_GERADAS).optional().default([]),
 });
 
 function logEvent(event: Record<string, unknown>) {
-  // Log estruturado JSON — facilita filtro em stack_modern--server-function-logs
   try {
     console.log(JSON.stringify({ ts: new Date().toISOString(), ...event }));
   } catch {
@@ -42,64 +40,53 @@ function logEvent(event: Record<string, unknown>) {
   }
 }
 
-async function fetchGatewayWithRetry(opts: {
+// Converte um data URL "data:image/png;base64,XXXX" em { mimeType, data }
+function dataUrlToInline(dataUrl: string): { mimeType: string; data: string } | null {
+  const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+  if (!m) return null;
+  return { mimeType: m[1], data: m[2] };
+}
+
+type GoogleImagePart =
+  | { text: string }
+  | { inline_data: { mime_type: string; data: string } };
+
+async function callGoogleImage(opts: {
   apiKey: string;
-  body: unknown;
+  parts: GoogleImagePart[];
   requestId: string;
 }): Promise<Response> {
-  const { apiKey, body, requestId } = opts;
-  const maxAttempts = 3;
-  let lastErr: unknown = null;
+  const { apiKey, parts, requestId } = opts;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${GOOGLE_IMAGE_MODEL}:generateContent?key=${encodeURIComponent(
+    apiKey,
+  )}`;
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), GATEWAY_TIMEOUT_MS);
-    const startedAt = Date.now();
-    try {
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Lovable-API-Key": apiKey,
-          "X-Lovable-AIG-SDK": "vercel-ai-sdk",
-          "X-Request-Id": requestId,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
-      logEvent({
-        kind: "gateway",
-        requestId,
-        attempt,
-        status: res.status,
-        durationMs: Date.now() - startedAt,
-      });
-      // Retry apenas em 429 e 5xx
-      if (res.status === 429 || res.status >= 500) {
-        if (attempt < maxAttempts) {
-          await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt - 1)));
-          continue;
-        }
-      }
-      return res;
-    } catch (err) {
-      clearTimeout(timer);
-      lastErr = err;
-      logEvent({
-        kind: "gateway-error",
-        requestId,
-        attempt,
-        durationMs: Date.now() - startedAt,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      if (attempt < maxAttempts) {
-        await new Promise((r) => setTimeout(r, 500 * Math.pow(2, attempt - 1)));
-        continue;
-      }
-    }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GOOGLE_TIMEOUT_MS);
+  const startedAt = Date.now();
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Request-Id": requestId,
+      },
+      body: JSON.stringify({
+        contents: [{ role: "user", parts }],
+        generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+      }),
+      signal: controller.signal,
+    });
+    logEvent({
+      kind: "google-image",
+      requestId,
+      status: res.status,
+      durationMs: Date.now() - startedAt,
+    });
+    return res;
+  } finally {
+    clearTimeout(timer);
   }
-  throw lastErr ?? new Error("Falha desconhecida ao chamar o gateway");
 }
 
 export const Route = createFileRoute("/api/chat")({
@@ -107,9 +94,9 @@ export const Route = createFileRoute("/api/chat")({
     handlers: {
       POST: async ({ request }) => {
         const requestId = request.headers.get("x-request-id") ?? crypto.randomUUID();
-        const apiKey = process.env.LOVABLE_API_KEY;
-        if (!apiKey) {
-          logEvent({ kind: "error", requestId, code: "missing-api-key" });
+        const googleKey = process.env.GOOGLE_AI_API_KEY;
+        if (!googleKey) {
+          logEvent({ kind: "error", requestId, code: "missing-google-key" });
           return new Response("Configuração da I.A indisponível.", {
             status: 500,
             headers: { "X-Request-Id": requestId },
@@ -121,12 +108,7 @@ export const Route = createFileRoute("/api/chat")({
           parsed = RequestSchema.parse(await request.json());
         } catch (err) {
           const detail = err instanceof Error ? err.message : String(err);
-          logEvent({
-            kind: "error",
-            requestId,
-            code: "bad-request",
-            error: detail,
-          });
+          logEvent({ kind: "error", requestId, code: "bad-request", error: detail });
           return new Response(`Requisição inválida (id: ${requestId}). ${detail.slice(0, 200)}`, {
             status: 400,
             headers: { "X-Request-Id": requestId },
@@ -138,10 +120,18 @@ export const Route = createFileRoute("/api/chat")({
           (arte) => arte.length <= MAX_ART_DATAURL_LENGTH,
         );
         const origin = new URL(request.url).origin;
-        const gateway = createLovableAiGatewayProvider(apiKey);
-        const chatModel = gateway("google/gemini-3-flash-preview");
 
-        // Usa até as últimas N artes como referência de estilo (variação)
+        // Provider OpenAI-compatível apontando para a API direta do Google
+        // (chave gratuita do usuário). Substitui o Lovable AI Gateway.
+        const provider = createOpenAICompatible({
+          name: "google-direct",
+          baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+          headers: {
+            Authorization: `Bearer ${googleKey}`,
+          },
+        });
+        const chatModel = provider(GOOGLE_TEXT_MODEL);
+
         const previousArts = artesGeradas.slice(-MAX_ARTES_GERADAS);
 
         logEvent({
@@ -150,12 +140,11 @@ export const Route = createFileRoute("/api/chat")({
           messageCount: messages.length,
           receivedArts: parsed.artesGeradas?.length ?? 0,
           acceptedArts: previousArts.length,
-          previousArtsBytes: previousArts.reduce((acc, a) => acc + a.length, 0),
         });
 
         const gerarArte = tool({
           description:
-            "Gera a arte promocional do Novo Glorex Presencial usando Nano Banana 2, com fundo branco, detalhes laranja-amarelados e a logo Novo Glorex. Use quando o usuário tiver fornecido dados suficientes.",
+            "Gera a arte promocional do Novo Glorex Presencial usando Nano Banana, com fundo branco, detalhes laranja-amarelados e a logo Novo Glorex. Use quando o usuário tiver fornecido dados suficientes.",
           inputSchema: z.object({
             dia: z.string().describe("Dia da semana e/ou data, ex: 'Sexta — dia 15'."),
             abertura: z.string().describe("Horário de abertura, ex: '18:30'."),
@@ -228,44 +217,49 @@ Devolva APENAS a imagem final, sem texto extra.`;
             const shuffled = [...refs.templates].sort(() => Math.random() - 0.5);
             const sampledTemplates = shuffled.slice(0, 2);
 
-            const userContent: Array<
-              { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
-            > = [
-              { type: "text", text: promptText },
-              { type: "image_url", image_url: { url: refs.logo.dataUrl } },
-              ...sampledTemplates.map((t) => ({
-                type: "image_url" as const,
-                image_url: { url: t.dataUrl },
-              })),
-              ...previousArts.map((url) => ({
-                type: "image_url" as const,
-                image_url: { url },
-              })),
-            ];
+            // Monta partes no formato nativo do Google
+            const parts: GoogleImagePart[] = [{ text: promptText }];
+
+            const logoInline = dataUrlToInline(refs.logo.dataUrl);
+            if (logoInline) {
+              parts.push({
+                inline_data: { mime_type: logoInline.mimeType, data: logoInline.data },
+              });
+            }
+
+            for (const t of sampledTemplates) {
+              const inline = dataUrlToInline(t.dataUrl);
+              if (inline) {
+                parts.push({
+                  inline_data: { mime_type: inline.mimeType, data: inline.data },
+                });
+              }
+            }
+
+            for (const url of previousArts) {
+              const inline = dataUrlToInline(url);
+              if (inline) {
+                parts.push({
+                  inline_data: { mime_type: inline.mimeType, data: inline.data },
+                });
+              }
+            }
 
             try {
-              const res = await fetchGatewayWithRetry({
-                apiKey,
-                requestId,
-                body: {
-                  model: "google/gemini-3.1-flash-image-preview",
-                  messages: [{ role: "user", content: userContent }],
-                  modalities: ["image", "text"],
-                },
-              });
+              const res = await callGoogleImage({ apiKey: googleKey, parts, requestId });
 
               if (!res.ok) {
                 const text = await res.text();
                 let userMsg: string;
-                if (res.status === 402) {
+                if (res.status === 429) {
                   userMsg =
-                    "Os créditos da I.A GX acabaram. Adicione créditos no Lovable Cloud e tente novamente.";
-                } else if (res.status === 429) {
+                    "Cota diária gratuita do Google atingida. Tente novamente em algumas horas (reset à meia-noite Pacífico) ou no dia seguinte.";
+                } else if (res.status === 401 || res.status === 403) {
                   userMsg =
-                    "Muitas gerações em sequência. Aguarde alguns segundos e tente de novo.";
+                    "Chave do Google inválida ou sem permissão para gerar imagens. Verifique em aistudio.google.com/apikey.";
                 } else if (res.status >= 500) {
                   userMsg =
-                    "O serviço de imagem está instável agora. Tente novamente em instantes.";
+                    "O serviço de imagem do Google está instável agora. Tente novamente em instantes.";
                 } else {
                   userMsg = `Falha ao gerar imagem (${res.status}).`;
                 }
@@ -275,30 +269,38 @@ Devolva APENAS a imagem final, sem texto extra.`;
                   status: res.status,
                   body: text.slice(0, 300),
                 });
-                return {
-                  ok: false as const,
-                  error: userMsg,
-                  requestId,
-                };
+                return { ok: false as const, error: userMsg, requestId };
               }
 
               const data = (await res.json()) as {
-                choices?: Array<{
-                  message?: {
-                    images?: Array<{ image_url?: { url?: string } }>;
-                    content?: string;
+                candidates?: Array<{
+                  content?: {
+                    parts?: Array<{
+                      inlineData?: { mimeType?: string; data?: string };
+                      inline_data?: { mime_type?: string; data?: string };
+                      text?: string;
+                    }>;
                   };
                 }>;
               };
 
-              const imageUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+              // Procura a primeira parte com inlineData (formato camelCase do Google)
+              let imageDataUrl: string | undefined;
+              const partsOut = data.candidates?.[0]?.content?.parts ?? [];
+              for (const p of partsOut) {
+                const inline = (p.inlineData ?? p.inline_data) as
+                  | { mimeType?: string; mime_type?: string; data?: string }
+                  | undefined;
+                const mt = inline?.mimeType ?? inline?.mime_type;
+                const dt = inline?.data;
+                if (mt && dt) {
+                  imageDataUrl = `data:${mt};base64,${dt}`;
+                  break;
+                }
+              }
 
-              if (!imageUrl) {
-                logEvent({
-                  kind: "gen-fail",
-                  requestId,
-                  reason: "no-image-in-response",
-                });
+              if (!imageDataUrl) {
+                logEvent({ kind: "gen-fail", requestId, reason: "no-image-in-response" });
                 return {
                   ok: false as const,
                   error: "O modelo não retornou imagem. Tente novamente.",
@@ -306,15 +308,11 @@ Devolva APENAS a imagem final, sem texto extra.`;
                 };
               }
 
-              logEvent({
-                kind: "gen-ok",
-                requestId,
-                imageBytes: imageUrl.length,
-              });
+              logEvent({ kind: "gen-ok", requestId, imageBytes: imageDataUrl.length });
 
               return {
                 ok: true as const,
-                imageDataUrl: imageUrl,
+                imageDataUrl,
                 requestId,
                 resumo: {
                   dia: input.dia,
