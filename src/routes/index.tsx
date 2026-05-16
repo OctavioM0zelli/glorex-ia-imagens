@@ -132,14 +132,24 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 function Index() {
-  const [initial] = useState<UIMessage[]>(loadInitial);
+  // Hidratação: começa vazio em SSR e no primeiro render do cliente,
+  // depois carrega do localStorage em useEffect para evitar mismatch.
+  const [initial, setInitial] = useState<UIMessage[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [input, setInput] = useState("");
-  const [artsCount, setArtsCount] = useState(() => loadArts().length);
+  const [artsCount, setArtsCount] = useState(0);
   const [online, setOnline] = useState(true);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Carrega histórico e artes depois da hidratação
+  useEffect(() => {
+    setInitial(loadInitial());
+    setArtsCount(loadArts().length);
+    setHydrated(true);
+  }, []);
 
   // Online/offline + install prompt listeners
   useEffect(() => {
