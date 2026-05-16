@@ -23,7 +23,7 @@ const GOOGLE_TIMEOUT_MS = 150_000;
 
 // Modelo de imagem do Google. Nano Banana (2.5 Flash Image) — muito mais
 // barato que o Pro Preview, cabe na cota gratuita mensal pra uso leve.
-const GOOGLE_IMAGE_MODEL = "gemini-2.5-flash-image";
+const GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
 // Modelo de texto para o chat. Cota gratuita ~1500 req/dia.
 const GOOGLE_TEXT_MODEL = "gemini-2.5-flash";
 
