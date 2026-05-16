@@ -711,9 +711,13 @@ function ErrorCard({
 function ArteToolPart({
   part,
   onDelete,
+  onRegenerate,
+  canRegenerate,
 }: {
   part: ArtePart;
   onDelete?: (dataUrl: string) => void;
+  onRegenerate?: () => void;
+  canRegenerate?: boolean;
 }) {
   if (part.state === "input-streaming" || part.state === "input-available") {
     return (
