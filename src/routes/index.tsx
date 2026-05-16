@@ -136,9 +136,7 @@ function Index() {
   const [resetKey, setResetKey] = useState(0);
   const [input, setInput] = useState("");
   const [artsCount, setArtsCount] = useState(() => loadArts().length);
-  const [online, setOnline] = useState(() =>
-    typeof navigator === "undefined" ? true : navigator.onLine,
-  );
+  const [online, setOnline] = useState(true);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -146,6 +144,7 @@ function Index() {
   // Online/offline + install prompt listeners
   useEffect(() => {
     if (typeof window === "undefined") return;
+    setOnline(navigator.onLine);
     const onOnline = () => setOnline(true);
     const onOffline = () => setOnline(false);
     const onBip = (e: Event) => {
@@ -276,19 +275,6 @@ function Index() {
     setResetKey((k) => k + 1);
   };
 
-  const handleClearArts = () => {
-    if (typeof window === "undefined") return;
-    const ok = window.confirm(
-      "Apagar a memória de estilo? A I.A GX vai gerar a próxima arte sem se basear nas anteriores.",
-    );
-    if (!ok) return;
-    try {
-      window.localStorage.removeItem(ARTS_KEY);
-    } catch {
-      /* ignore */
-    }
-    setArtsCount(0);
-  };
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -324,16 +310,13 @@ function Index() {
               </Button>
             )}
             {artsCount > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={handleClearArts}
-                className="text-muted-foreground hover:text-foreground"
-                title="Limpa as artes que a I.A GX usa como memória de estilo"
+              <span
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground"
+                title="Artes que a I.A GX usa como memória de estilo (não pode ser apagada)"
               >
-                <Sparkles className="mr-1.5 h-4 w-4" />
+                <Sparkles className="h-4 w-4 text-primary" />
                 Memória ({artsCount})
-              </Button>
+              </span>
             )}
             <Button
               variant="ghost"
