@@ -359,11 +359,43 @@ function Index() {
   const isLoading = status === "submitted" || status === "streaming";
   const visibleMessages = hydrated ? messages : [];
 
+  // Cooldown após 429 (cota / rate limit) para não desperdiçar novas tentativas.
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (cooldownUntil <= now) return;
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [cooldownUntil, now]);
+  const cooldownSecs = Math.max(0, Math.ceil((cooldownUntil - now) / 1000));
+  const inCooldown = cooldownSecs > 0;
+
+  useEffect(() => {
+    if (!error) return;
+    if (/429|too many|limite de requisi|rate/i.test(error.message || "")) {
+      setCooldownUntil(Date.now() + 60_000);
+    }
+  }, [error]);
+
+  useEffect(() => {
+    for (const m of messages) {
+      for (const p of m.parts) {
+        if (p.type !== "tool-gerar_arte_glorex") continue;
+        const pp = p as unknown as ArtePart;
+        if (pp.output?.category === "quota") {
+          setCooldownUntil((prev) => Math.max(prev, Date.now() + 60_000));
+          return;
+        }
+      }
+    }
+  }, [messages]);
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const text = input.trim();
     if (!text || isLoading) return;
     if (!online) return;
+    if (inCooldown) return;
     setInput("");
     await sendMessage({ text });
   };
