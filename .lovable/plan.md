@@ -1,33 +1,57 @@
-## Objetivo
+# Atualizar prompt do Gemini para artes Novo Glorex premium
 
-Dar ao usuário controle sobre a geração:
-1. **Parar** — interromper enquanto a I.A está gerando (texto ou arte).
-2. **Gerar novamente** — refazer a última arte com o mesmo briefing, sem precisar redigitar.
+## Problema
+O prompt atual em `src/routes/api/chat.ts` está produzindo artes genéricas. O usuário forneceu um briefing muito mais detalhado (estética neon/cassino, hierarquia, regras de layout, lista expandida de elementos visuais e premiações).
 
 ## Mudanças
 
-### 1. `src/routes/api/chat.ts`
-- Passar `abortSignal: request.signal` para `streamText` — sem isso, mesmo o usuário "parando" no front, o servidor continua rodando o loop de tools (e queimando cota do Google + tempo de resposta de imagem).
+**Arquivo único:** `src/routes/api/chat.ts`
 
-### 2. `src/routes/index.tsx`
+### 1. Expandir a lista de paletas
+Substituir as 5 paletas atuais pelas 7 do briefing, mantendo o sorteio aleatório a cada geração:
+- vermelho + preto
+- roxo + rosa
+- azul + roxo
+- verde neon + preto
+- dourado + vermelho
+- laranja + amarelo
+- azul neon + preto
 
-**Stop:**
-- Extrair `stop` de `useChat`.
-- No formulário (botão de envio), quando `isLoading` for `true`, trocar o ícone `Send`/`Loader2` por um ícone de parar (`Square` do lucide) com `type="button"` e `onClick={stop}`. Tooltip "Parar geração".
-- Mostrar o botão Parar desde `status === "submitted"` (antes do primeiro token), não só durante `streaming` — assim dá pra cancelar a chamada de imagem (que demora até 2 min) imediatamente.
+Cada paleta descrita como "saturada, vibrante, neon/luxuosa".
 
-**Gerar novamente:**
-- Adicionar botão "Gerar novamente" no card da arte (`ArteToolPart`), ao lado de "Apagar" e "Baixar".
-- Ao clicar:
-  - Procurar, nas mensagens anteriores, a última mensagem do usuário que veio antes desta arte (briefing original).
-  - Chamar `sendMessage({ text: "Gere novamente a mesma arte, com nova variação de paleta e layout. Briefing: <texto da última mensagem do usuário>" })`.
-  - Desabilitar o botão enquanto `isLoading`.
-- Ficar visível apenas em artes com `output.ok === true` (sucesso).
+### 2. Reescrever `promptText`
+Trocar o texto atual pelo novo briefing, mantendo a interpolação dos campos da tool (`input.dia`, `input.abertura`, `input.jogadas`, `input.bolaDoDia`, `input.premioBingo`, `input.slogan`, `input.observacoes`). Estrutura nova:
 
-## Out of scope
-- Não mexer em persistência (o `useChat` já mantém as partes parciais em memória; ao parar no meio de uma arte, o card de loading some e o usuário pode digitar de novo).
-- Sem retry automático em falha — só botão manual disparado pelo usuário.
-- Sem mudança no design tokens / paleta.
+- **Estilo geral**: ultra vibrante, neon, glow, 3D, tipografia gigante, mistura cassino/bingo/sorteio noturno, contraste forte, layout dinâmico com caixas e molduras luminosas.
+- **Identidade visual**: logo "Novo Glorex Presencial" no topo, grande, com glow e profundidade (referenciando a imagem de logo enviada).
+- **Paleta da geração**: injetar a paleta sorteada.
+- **Tipografia**: enorme, negrito, 3D, branco/dourado/amarelo neon/azul neon/vermelho intenso, contorno e sombra fortes. Título do dia (ex.: "${input.dia}") domina a composição.
+- **Estrutura em blocos** (de cima para baixo):
+  1. Cabeçalho com logo + dia/evento.
+  2. Faixa "ABERTURA ${input.abertura}".
+  3. Linhas horizontais de horários e prêmios — horários SEMPRE alinhados à esquerda, cada um colado ao prêmio correto, sem nada cobrindo. Listar `input.jogadas`.
+  4. Destaque da BOLA DO DIA (`input.bolaDoDia`) — bola gigante com brilho intenso na área central.
+  5. Quando houver `input.premioBingo`, bloco explicativo do prêmio extra.
+  6. Rodapé com `input.slogan` em destaque.
+- **Elementos visuais obrigatórios**: bolas de bingo gigantes com números, relógios ao lado dos horários, dinheiro brasileiro voando, confetes, estrelas, luzes neon, faíscas, partículas, fumaça colorida, efeitos cassino.
+- **Premiações físicas** (quando citadas em jogadas/observações): ilustrar de forma realista e premium — airfryer com carnes nobres, frigobar com cervejas, caixa de picanha, kit churrasco, churrasco apetitoso. Estilo "anúncio comercial luxuoso". Sem marcas reais.
+- **Efeitos**: glow neon, reflexos, profundidade, iluminação cinematográfica, sombras intensas, brilhos metálicos, gradientes fortes, contornos luminosos.
+- **Clima**: emoção, urgência, sorte, riqueza, energia de cassino/bingo moderno.
+- **Regras críticas** (mantidas e reforçadas):
+  - Nenhum texto cortado, coberto ou sobreposto. Cada info tem seu espaço.
+  - Horários nunca cobertos por caixas/imagens.
+  - Não inventar dados além dos fornecidos.
+  - Manter horários, números e valores exatamente como enviados.
+  - Sem marcas famosas reais nos produtos.
+  - Tudo em português brasileiro.
+  - Cada arte ÚNICA — variar disposição, decoração e enquadramento em relação às artes anteriores enviadas como referência; usar paleta diferente da última.
+  - Formato vertical 1080x1920 (9:16), pensado para Instagram Stories e WhatsApp Status.
+- Fechar com "Devolva APENAS a imagem final, sem texto extra."
+
+### 3. Não mexer
+- Logo + 8 templates + artes anteriores continuam sendo enviados como `inline_data` (já funciona).
+- Modelo (`gemini-3-pro-image-preview`), aspect ratio 9:16, timeout, tratamento de erros, abort signal — sem alteração.
+- Schema da tool, fluxo de chamada, persistência — sem alteração.
 
 ## Risco
-Baixo. `stop()` é API nativa do `useChat`. O `abortSignal` pode demorar alguns segundos pra abortar a chamada do Google se ela já estiver em flight (o `fetch` interno respeita o signal, então o timeout efetivo cai).
+Baixo. É edição de string de prompt + array de paletas. Sem impacto em tipos, schema ou fluxo de rede.

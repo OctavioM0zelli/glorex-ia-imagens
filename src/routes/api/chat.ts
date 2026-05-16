@@ -197,11 +197,13 @@ export const Route = createFileRoute("/api/chat")({
 
             const paleta = (() => {
               const paletas = [
-                "VERMELHO + PRETO + DOURADO — vermelho vibrante de fundo, blocos pretos, destaques dourados/amarelos brilhantes",
-                "AZUL + VERDE — azul royal profundo de fundo com acentos em verde neon, detalhes dourados e brancos",
-                "ROXO + ROSA — fundo roxo/magenta com explosões em rosa neon e dourado",
-                "AMARELO + BRANCO — fundo amarelo intenso com blocos brancos, contornos pretos e detalhes vermelhos",
-                "VERDE NEON + PRETO — fundo preto profundo com explosões em verde neon, dourado e branco",
+                "VERMELHO + PRETO — vermelho saturado neon e preto profundo, com acentos dourados e brancos brilhantes",
+                "ROXO + ROSA — roxo elétrico e rosa neon vibrante, com glow magenta e detalhes brancos",
+                "AZUL + ROXO — azul royal e roxo profundo, com glow ciano/violeta e brilhos dourados",
+                "VERDE NEON + PRETO — preto profundo com explosões em verde neon luxuoso e detalhes dourados",
+                "DOURADO + VERMELHO — dourado metálico brilhante sobre vermelho intenso, clima de premiação luxuosa",
+                "LARANJA + AMARELO — laranja saturado e amarelo neon, com brilhos brancos e contornos pretos fortes",
+                "AZUL NEON + PRETO — preto profundo com azul neon elétrico, glow ciano e detalhes prateados/dourados",
               ];
               return paletas[Math.floor(Math.random() * paletas.length)];
             })();
