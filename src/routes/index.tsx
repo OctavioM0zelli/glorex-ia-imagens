@@ -207,7 +207,7 @@ function Index() {
   );
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
-    id: `glorex-chat-${resetKey}`,
+    id: `glorex-chat-${resetKey}-${hydrated ? "h" : "s"}`,
     messages: initial,
     transport,
   });
