@@ -226,10 +226,15 @@ PALETA DESTA GERAÇÃO
 ${paleta}.
 Cores sempre SATURADAS, VIBRANTES, aparência NEON / LUXUOSA. O fundo pode conter gradientes fortes, fumaça colorida, luzes, partículas, faíscas, raios e brilho radial. Use paleta DIFERENTE das últimas artes enviadas como referência.
 
+REGRA OBRIGATÓRIA DE COR PREDOMINANTE:
+- Escolha UMA cor predominante para esta arte (com base na paleta acima) e use ela na MAIORIA dos elementos visuais: fundo principal, faixas, blocos de horários/prêmios, molduras, glow e detalhes decorativos.
+- Não precisa ser a única cor — cores de apoio e metálicos (dourado, prata) podem aparecer em destaques —, mas a cor predominante deve DOMINAR visualmente a composição (ex: se for vermelho, a arte inteira deve "respirar" vermelho).
+- Cada arte nova deve ter uma cor predominante DIFERENTE da arte anterior.
+
 ==============================
 TIPOGRAFIA
 ==============================
-Textos ENORMES, extremamente legíveis, em NEGRITO, com aparência 3D ou semi-3D. Misturar branco, dourado, amarelo neon, azul neon e vermelho intenso. Aplicar CONTORNO forte e SOMBRA. O título principal do dia ("${input.dia}") deve DOMINAR a composição visual.
+Textos ENORMES, extremamente legíveis, em NEGRITO, com aparência 3D ou semi-3D. PREFERÊNCIA FORTE por TEXTO BRANCO na maior parte dos textos (títulos, horários, descrições) — branco puro com contorno escuro e sombra para garantir contraste sobre a cor predominante. Use dourado, amarelo neon ou cores quentes APENAS em destaques pontuais (ex: valor de prêmio principal, número da bola do dia). O título principal do dia ("${input.dia}") deve DOMINAR a composição visual.
 
 ==============================
 ESTRUTURA DA ARTE (em blocos)
