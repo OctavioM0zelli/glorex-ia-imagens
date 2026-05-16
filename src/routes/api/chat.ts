@@ -218,7 +218,7 @@ Design ultra vibrante, com iluminação NEON, brilhos intensos, sombras fortes, 
 ==============================
 IDENTIDADE VISUAL
 ==============================
-- LOGO "NOVO GLOREX PRESENCIAL" sempre em destaque no topo da arte, ocupando bastante espaço, com aparência brilhante e impactante (glow, profundidade, iluminação, integrada ao flyer). Use a PRIMEIRA imagem de referência (logo) como base — mantenha fidelidade total ao logo.
+- LOGO "NOVO GLOREX PRESENCIAL" SEMPRE posicionada no CANTO SUPERIOR ESQUERDO da arte, em tamanho PEQUENO/COMPACTO (ocupando no máximo ~15-18% da largura da arte), como uma marca-d'água/selo de identidade — NUNCA grande, NUNCA centralizada, NUNCA dominando a composição. Mantenha brilho sutil e fidelidade total ao logo original (use a PRIMEIRA imagem de referência como base). O restante do espaço do topo é livre para título do dia e demais elementos.
 
 ==============================
 PALETA DESTA GERAÇÃO
