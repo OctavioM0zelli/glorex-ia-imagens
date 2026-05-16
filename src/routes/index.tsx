@@ -10,8 +10,10 @@ import {
   KeyRound,
   Loader2,
   Lock,
+  RefreshCw,
   SearchX,
   Send,
+  Square,
   ServerCrash,
   ShieldAlert,
   Sparkles,
@@ -267,7 +269,7 @@ function Index() {
     [],
   );
 
-  const { messages, sendMessage, status, error, setMessages } = useChat({
+  const { messages, sendMessage, status, error, setMessages, stop } = useChat({
     id: `glorex-chat-${resetKey}-${hydrated ? "h" : "s"}`,
     messages: initial,
     transport,
@@ -450,10 +452,31 @@ function Index() {
         {visibleMessages.length === 0 ? <EmptyState /> : null}
 
         <div className="space-y-6">
-          {visibleMessages.map((m) => (
+          {visibleMessages.map((m, idx) => (
             <MessageBubble
               key={m.id}
               message={m}
+              canRegenerate={!isLoading && online}
+              onRegenerate={() => {
+                // Acha a última mensagem do user antes desta mensagem com arte
+                let briefing = "";
+                for (let i = idx - 1; i >= 0; i--) {
+                  const prev = visibleMessages[i];
+                  if (prev.role !== "user") continue;
+                  const txt = prev.parts
+                    .map((p) => (p.type === "text" ? (p as { text: string }).text : ""))
+                    .join(" ")
+                    .trim();
+                  if (txt) {
+                    briefing = txt;
+                    break;
+                  }
+                }
+                const prompt = briefing
+                  ? `Gere novamente a arte, com uma NOVA variação de paleta de fundo e layout (diferente da anterior). Briefing: ${briefing}`
+                  : "Gere novamente a última arte, com uma NOVA variação de paleta de fundo e layout (diferente da anterior).";
+                sendMessage({ text: prompt });
+              }}
               onDeleteArt={(dataUrl) => {
                 removeArtByPrefix(dataUrl.slice(0, 80));
                 setArtsCount(loadArts().length);
@@ -516,19 +539,28 @@ function Index() {
             className="min-h-[56px] flex-1 resize-none"
             autoFocus
           />
-          <Button
-            type="submit"
-            disabled={isLoading || !input.trim() || !online}
-            size="icon"
-            className="h-11 w-11 shrink-0"
-            title={!online ? "Sem conexão" : undefined}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
+          {isLoading ? (
+            <Button
+              type="button"
+              onClick={() => stop()}
+              size="icon"
+              variant="destructive"
+              className="h-11 w-11 shrink-0"
+              title="Parar geração"
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              disabled={!input.trim() || !online}
+              size="icon"
+              className="h-11 w-11 shrink-0"
+              title={!online ? "Sem conexão" : undefined}
+            >
               <Send className="h-4 w-4" />
-            )}
-          </Button>
+            </Button>
+          )}
         </form>
       </footer>
     </div>
@@ -565,9 +597,13 @@ function ExampleCard({ text }: { text: string }) {
 function MessageBubble({
   message,
   onDeleteArt,
+  onRegenerate,
+  canRegenerate,
 }: {
   message: UIMessage;
   onDeleteArt?: (dataUrl: string) => void;
+  onRegenerate?: () => void;
+  canRegenerate?: boolean;
 }) {
   const isUser = message.role === "user";
   return (
@@ -593,6 +629,8 @@ function MessageBubble({
                 key={i}
                 part={part as unknown as ArtePart}
                 onDelete={onDeleteArt}
+                onRegenerate={onRegenerate}
+                canRegenerate={canRegenerate}
               />
             );
           }
@@ -673,9 +711,13 @@ function ErrorCard({
 function ArteToolPart({
   part,
   onDelete,
+  onRegenerate,
+  canRegenerate,
 }: {
   part: ArtePart;
   onDelete?: (dataUrl: string) => void;
+  onRegenerate?: () => void;
+  canRegenerate?: boolean;
 }) {
   if (part.state === "input-streaming" || part.state === "input-available") {
     return (
@@ -709,6 +751,18 @@ function ArteToolPart({
         <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
           <span className="text-xs text-muted-foreground">Arte gerada por I.A GX</span>
           <div className="flex items-center gap-1.5">
+            {onRegenerate && (
+              <button
+                type="button"
+                onClick={onRegenerate}
+                disabled={!canRegenerate}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                title="Gerar novamente com nova variação"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Gerar novamente
+              </button>
+            )}
             {onDelete && (
               <button
                 type="button"

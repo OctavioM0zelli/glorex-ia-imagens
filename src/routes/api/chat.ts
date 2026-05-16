@@ -433,6 +433,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
           messages: await convertToModelMessages(messages),
           tools: { gerar_arte_glorex: gerarArte },
           stopWhen: stepCountIs(50),
+          abortSignal: request.signal,
         });
 
         return result.toUIMessageStreamResponse({
