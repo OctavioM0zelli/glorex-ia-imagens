@@ -234,7 +234,7 @@ Textos ENORMES, extremamente legíveis, em NEGRITO, com aparência 3D ou semi-3D
 ==============================
 ESTRUTURA DA ARTE (em blocos)
 ==============================
-1. CABEÇALHO: logo "NOVO GLOREX PRESENCIAL" + título do dia/evento: "${input.dia}".
+1. CABEÇALHO: logo PEQUENA no canto superior ESQUERDO + título do dia/evento "${input.dia}" ocupando o centro/direita do topo em destaque gigante.
 2. FAIXA DE ABERTURA em destaque: "ABERTURA ${input.abertura}".
 3. HORÁRIOS E PREMIAÇÕES organizados em LINHAS HORIZONTAIS, com os horários SEMPRE alinhados na lateral ESQUERDA, cada horário colado exatamente ao prêmio correspondente. Cada linha com ícone de RELÓGIO ao lado do horário. NUNCA cobrir horários com caixas, textos ou imagens. Espaçamento limpo e organização perfeita:
 ${input.jogadas.map((j) => `   ${j.horario} — ${j.descricao}`).join("\n")}
