@@ -235,8 +235,9 @@ VARIAÇÃO OBRIGATÓRIA:
 
 Devolva APENAS a imagem final, sem texto extra.`;
 
-            const shuffled = [...refs.templates].sort(() => Math.random() - 0.5);
-            const sampledTemplates = shuffled.slice(0, 2);
+            // Envia TODOS os templates de referência para que o modelo aprenda
+            // o estilo visual da marca (variação de cores, layout, tipografia).
+            const sampledTemplates = refs.templates;
 
             // Monta partes no formato nativo do Google
             const parts: GoogleImagePart[] = [{ text: promptText }];
