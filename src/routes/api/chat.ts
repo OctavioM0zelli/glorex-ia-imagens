@@ -180,10 +180,16 @@ export const Route = createFileRoute("/api/chat")({
                 reason: "reference-load-failed",
                 error: detail.slice(0, 300),
               });
-              throw new Error(
-                `Falha ao carregar imagens de referência do Novo Glorex (${detail.slice(0, 120)}).`,
-              );
+              return null;
             });
+            if (!refs) {
+              return {
+                ok: false as const,
+                error:
+                  "Falha interna — não consegui carregar as imagens de referência do Novo Glorex para montar a arte. Tente novamente; se continuar, o problema está no carregamento dos arquivos da marca.",
+                requestId,
+              };
+            }
 
             const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL (formato flyer 1024x1536) para o "NOVO GLOREX PRESENCIAL" seguindo EXATAMENTE este briefing:
 
