@@ -751,6 +751,18 @@ function ArteToolPart({
         <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
           <span className="text-xs text-muted-foreground">Arte gerada por I.A GX</span>
           <div className="flex items-center gap-1.5">
+            {onRegenerate && (
+              <button
+                type="button"
+                onClick={onRegenerate}
+                disabled={!canRegenerate}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+                title="Gerar novamente com nova variação"
+              >
+                <RefreshCw className="h-3.5 w-3.5" />
+                Gerar novamente
+              </button>
+            )}
             {onDelete && (
               <button
                 type="button"
