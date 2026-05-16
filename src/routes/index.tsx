@@ -596,9 +596,13 @@ function ExampleCard({ text }: { text: string }) {
 function MessageBubble({
   message,
   onDeleteArt,
+  onRegenerate,
+  canRegenerate,
 }: {
   message: UIMessage;
   onDeleteArt?: (dataUrl: string) => void;
+  onRegenerate?: () => void;
+  canRegenerate?: boolean;
 }) {
   const isUser = message.role === "user";
   return (
@@ -624,6 +628,8 @@ function MessageBubble({
                 key={i}
                 part={part as unknown as ArtePart}
                 onDelete={onDeleteArt}
+                onRegenerate={onRegenerate}
+                canRegenerate={canRegenerate}
               />
             );
           }
