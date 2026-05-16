@@ -2,7 +2,24 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Download, Loader2, Send, Sparkles, Trash2, WifiOff } from "lucide-react";
+import {
+  AlertTriangle,
+  Download,
+  Gauge,
+  ImageOff,
+  KeyRound,
+  Loader2,
+  Lock,
+  SearchX,
+  Send,
+  ServerCrash,
+  ShieldAlert,
+  Sparkles,
+  TimerOff,
+  Trash2,
+  WifiOff,
+  type LucideIcon,
+} from "lucide-react";
 
 import logo from "@/assets/logo-novo-glorex.png";
 import { Button } from "@/components/ui/button";
@@ -484,6 +501,7 @@ type ArtePart = {
     ok: boolean;
     imageDataUrl?: string;
     error?: string;
+    category?: string;
     httpStatus?: number;
     googleStatus?: string;
     googleCode?: string | number;
@@ -491,6 +509,56 @@ type ArtePart = {
   };
   errorText?: string;
 };
+
+const CATEGORY_META: Record<string, { label: string; icon: LucideIcon }> = {
+  references: { label: "Falha ao carregar referências da marca", icon: ImageOff },
+  quota: { label: "Cota do Google atingida", icon: Gauge },
+  auth: { label: "Chave do Google inválida", icon: KeyRound },
+  permission: { label: "Sem permissão para o modelo", icon: Lock },
+  model_not_found: { label: "Modelo não encontrado", icon: SearchX },
+  bad_request: { label: "Requisição rejeitada", icon: AlertTriangle },
+  upstream: { label: "Serviço do Google instável", icon: ServerCrash },
+  safety: { label: "Bloqueio de segurança", icon: ShieldAlert },
+  timeout: { label: "Tempo esgotado", icon: TimerOff },
+  network: { label: "Falha de rede", icon: WifiOff },
+  unknown: { label: "Erro desconhecido", icon: AlertTriangle },
+};
+
+function ErrorCard({
+  category,
+  message,
+  httpStatus,
+  googleStatus,
+  googleCode,
+  requestId,
+}: {
+  category?: string;
+  message?: string;
+  httpStatus?: number;
+  googleStatus?: string;
+  googleCode?: string | number;
+  requestId?: string;
+}) {
+  const meta = CATEGORY_META[category ?? "unknown"] ?? CATEGORY_META.unknown;
+  const Icon = meta.icon;
+  const tech: string[] = [];
+  if (httpStatus) tech.push(`HTTP ${httpStatus}`);
+  if (googleStatus) tech.push(googleStatus);
+  if (googleCode) tech.push(`code ${googleCode}`);
+  if (requestId) tech.push(`id ${requestId}`);
+  return (
+    <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">
+      <div className="flex items-center gap-2 font-semibold">
+        <Icon className="h-4 w-4 shrink-0" />
+        <span>{meta.label}</span>
+      </div>
+      {message && <div className="mt-1.5 text-sm opacity-90">{message}</div>}
+      {tech.length > 0 && (
+        <div className="mt-2 break-all font-mono text-[11px] opacity-70">{tech.join(" · ")}</div>
+      )}
+    </div>
+  );
+}
 
 function ArteToolPart({ part }: { part: ArtePart }) {
   if (part.state === "input-streaming" || part.state === "input-available") {
@@ -504,10 +572,10 @@ function ArteToolPart({ part }: { part: ArtePart }) {
 
   if (part.state === "output-error") {
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-        <div className="font-medium">Não consegui gerar a arte.</div>
-        {part.errorText && <div className="mt-1 text-xs opacity-80">{part.errorText}</div>}
-      </div>
+      <ErrorCard
+        category="unknown"
+        message={part.errorText ?? "A ferramenta lançou uma exceção inesperada."}
+      />
     );
   }
 
@@ -537,18 +605,14 @@ function ArteToolPart({ part }: { part: ArtePart }) {
   }
 
   const out = part.output;
-  const meta: string[] = [];
-  if (out?.httpStatus) meta.push(`HTTP ${out.httpStatus}`);
-  if (out?.googleStatus) meta.push(out.googleStatus);
-  if (out?.googleCode) meta.push(`code ${out.googleCode}`);
-  if (out?.requestId) meta.push(`id ${out.requestId.slice(0, 8)}`);
   return (
-    <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-      <div className="font-medium">Falha ao gerar a arte</div>
-      <div className="mt-1">{out?.error ?? "Erro desconhecido."}</div>
-      {meta.length > 0 && (
-        <div className="mt-1 font-mono text-[11px] opacity-70">{meta.join(" · ")}</div>
-      )}
-    </div>
+    <ErrorCard
+      category={out?.category}
+      message={out?.error ?? "Erro desconhecido."}
+      httpStatus={out?.httpStatus}
+      googleStatus={out?.googleStatus}
+      googleCode={out?.googleCode}
+      requestId={out?.requestId}
+    />
   );
 }
