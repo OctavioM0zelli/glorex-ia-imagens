@@ -144,6 +144,7 @@ function Index() {
   // Online/offline + install prompt listeners
   useEffect(() => {
     if (typeof window === "undefined") return;
+    setOnline(navigator.onLine);
     const onOnline = () => setOnline(true);
     const onOffline = () => setOnline(false);
     const onBip = (e: Event) => {
