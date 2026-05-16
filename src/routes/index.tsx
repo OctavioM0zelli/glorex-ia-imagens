@@ -173,6 +173,19 @@ async function saveArt(dataUrl: string) {
   }
 }
 
+// Remove uma arte salva cujo dataUrl comece com o prefixo informado
+// (usamos prefixo porque a versão salva é comprimida e difere da exibida).
+function removeArtByPrefix(prefix: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = loadArts();
+    const next = existing.filter((a) => !a.dataUrl.startsWith(prefix));
+    window.localStorage.setItem(ARTS_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
+
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
