@@ -280,44 +280,33 @@ function Index() {
 
     // Resize newly generated arts to 1080x1920, save them, and update the message.
     (async () => {
-      let added = false;
-      let mutated = false;
-      const nextMessages = messages.map((m) => ({
-        ...m,
-        parts: m.parts.map((part) => {
-          if (part.type !== "tool-gerar_arte_glorex") return part;
+      const tasks: Array<{ sig: string; url: string }> = [];
+      for (const m of messages) {
+        for (const part of m.parts) {
+          if (part.type !== "tool-gerar_arte_glorex") continue;
           const p = part as unknown as ArtePart;
           const url = p.output?.imageDataUrl;
-          if (p.state !== "output-available" || !p.output?.ok || !url) return part;
+          if (p.state !== "output-available" || !p.output?.ok || !url) continue;
           const sig = url.slice(0, 80);
-          if (processedArtSignatures.current.has(sig)) return part;
+          if (processedArtSignatures.current.has(sig)) continue;
           processedArtSignatures.current.add(sig);
-          // mark as needing async resize below
-          return { ...part, __needsResize: true, __sig: sig } as typeof part;
-        }),
-      }));
-      // Collect signatures that need resize
-      const tasks: Array<{ sig: string; url: string }> = [];
-      for (const m of nextMessages) {
-        for (const part of m.parts) {
-          const tagged = part as unknown as { __needsResize?: boolean; __sig?: string };
-          if (tagged.__needsResize) {
-            const p = part as unknown as ArtePart;
-            tasks.push({ sig: tagged.__sig!, url: p.output!.imageDataUrl! });
-          }
+          tasks.push({ sig, url });
         }
       }
       if (tasks.length === 0) return;
+      let added = false;
       const resized = new Map<string, string>();
       for (const t of tasks) {
         const out = await resizeDataUrlToExact(t.url, 1080, 1920);
         resized.set(t.sig, out);
+        // Marca a versão final como processada também (evita reprocessar
+        // depois que setMessages atualizar a mensagem)
+        processedArtSignatures.current.add(out.slice(0, 80));
         const before = loadArts().length;
         await saveArt(out);
         const after = loadArts().length;
         if (after > before) added = true;
       }
-      // Apply resized URLs back to messages
       setMessages((prev) =>
         prev.map((m) => ({
           ...m,
@@ -326,10 +315,8 @@ function Index() {
             const p = part as unknown as ArtePart;
             const url = p.output?.imageDataUrl;
             if (!url) return part;
-            const sig = url.slice(0, 80);
-            const newUrl = resized.get(sig);
+            const newUrl = resized.get(url.slice(0, 80));
             if (!newUrl || newUrl === url) return part;
-            mutated = true;
             return {
               ...part,
               output: { ...p.output!, imageDataUrl: newUrl },
@@ -338,7 +325,6 @@ function Index() {
         })),
       );
       if (added) setArtsCount(loadArts().length);
-      void mutated;
     })();
   }, [messages, hydrated, setMessages]);
 
