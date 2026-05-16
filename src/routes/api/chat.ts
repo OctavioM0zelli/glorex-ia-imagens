@@ -172,7 +172,18 @@ export const Route = createFileRoute("/api/chat")({
               .describe("Detalhes visuais extras pedidos pelo usuário."),
           }),
           execute: async (input) => {
-            const refs = await getGlorexReferences(origin);
+            const refs = await getGlorexReferences(origin).catch((err) => {
+              const detail = err instanceof Error ? err.message : String(err);
+              logEvent({
+                kind: "gen-fail",
+                requestId,
+                reason: "reference-load-failed",
+                error: detail.slice(0, 300),
+              });
+              throw new Error(
+                `Falha ao carregar imagens de referência do Novo Glorex (${detail.slice(0, 120)}).`,
+              );
+            });
 
             const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL (formato flyer 1024x1536) para o "NOVO GLOREX PRESENCIAL" seguindo EXATAMENTE este briefing:
 
