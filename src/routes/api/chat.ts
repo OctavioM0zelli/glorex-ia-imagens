@@ -197,59 +197,95 @@ export const Route = createFileRoute("/api/chat")({
 
             const paleta = (() => {
               const paletas = [
-                "VERMELHO + PRETO + DOURADO — vermelho vibrante de fundo, blocos pretos, destaques dourados/amarelos brilhantes",
-                "AZUL + VERDE — azul royal profundo de fundo com acentos em verde neon, detalhes dourados e brancos",
-                "ROXO + ROSA — fundo roxo/magenta com explosões em rosa neon e dourado",
-                "AMARELO + BRANCO — fundo amarelo intenso com blocos brancos, contornos pretos e detalhes vermelhos",
-                "VERDE NEON + PRETO — fundo preto profundo com explosões em verde neon, dourado e branco",
+                "VERMELHO + PRETO — vermelho saturado neon e preto profundo, com acentos dourados e brancos brilhantes",
+                "ROXO + ROSA — roxo elétrico e rosa neon vibrante, com glow magenta e detalhes brancos",
+                "AZUL + ROXO — azul royal e roxo profundo, com glow ciano/violeta e brilhos dourados",
+                "VERDE NEON + PRETO — preto profundo com explosões em verde neon luxuoso e detalhes dourados",
+                "DOURADO + VERMELHO — dourado metálico brilhante sobre vermelho intenso, clima de premiação luxuosa",
+                "LARANJA + AMARELO — laranja saturado e amarelo neon, com brilhos brancos e contornos pretos fortes",
+                "AZUL NEON + PRETO — preto profundo com azul neon elétrico, glow ciano e detalhes prateados/dourados",
               ];
               return paletas[Math.floor(Math.random() * paletas.length)];
             })();
 
-            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL (formato cartaz 1080x1920, proporção 9:16) para o "NOVO GLOREX PRESENCIAL", no estilo de CARTAZ POPULAR DE BINGO BRASILEIRO — visual chamativo, alto contraste, cores vibrantes, composição cheia de energia.
-
-PALETA PRINCIPAL DESTA GERAÇÃO: ${paleta}.
+            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL no formato 1080x1920 (proporção 9:16) para o evento do "NOVO GLOREX PRESENCIAL". Estética EXTREMAMENTE chamativa, MODERNA, PROFISSIONAL, inspirada em flyers brasileiros de BINGO / PREMIAÇÕES / CASSINO. A arte deve transmitir EMOÇÃO, URGÊNCIA, SORTE, RIQUEZA e ENTRETENIMENTO. Pensada para Instagram Stories e WhatsApp Status.
 
 ==============================
-IDENTIDADE VISUAL OBRIGATÓRIA
+ESTILO GERAL
 ==============================
-- LOGO PRINCIPAL no topo: "NOVO GLOREX" em letras GRANDES, estilo 3D, dourado/amarelo com contorno branco e sombra forte. Use a PRIMEIRA imagem de referência como base e mantenha fidelidade ao logo.
-- Selo logo abaixo do logo: "PRESENCIAL".
-- Fundo com gradientes fortes, brilho, estrelas, luzes radiais, confetes, textura pontilhada e elementos de sorte (trevos, moedas, cédulas).
-- Estilo popular, impactante, promocional, parecido com cartazes de bingo e sorteios presenciais. EVITAR visual minimalista.
+Design ultra vibrante, com iluminação NEON, brilhos intensos, sombras fortes, GLOW colorido, efeitos 3D e tipografia gigante. A arte deve parecer PREMIUM, lotada de informação organizada visualmente sem ficar bagunçada. Misture elementos de cassino, bingo, sorteios e eventos noturnos. Contraste forte entre fundo e textos. Layout dinâmico com caixas, divisórias luminosas, molduras brilhantes e elementos flutuantes.
 
 ==============================
-ESTRUTURA DO CARTAZ (de cima para baixo)
+IDENTIDADE VISUAL
 ==============================
-1. Topo grande com o DIA DA SEMANA em destaque: "${input.dia}"
-2. Faixa de abertura em destaque: "ABERTURA ${input.abertura}"
-3. Lista de HORÁRIOS E PRÊMIOS em blocos arredondados, cada bloco com ícone de relógio à esquerda:
+- LOGO "NOVO GLOREX PRESENCIAL" sempre em destaque no topo da arte, ocupando bastante espaço, com aparência brilhante e impactante (glow, profundidade, iluminação, integrada ao flyer). Use a PRIMEIRA imagem de referência (logo) como base — mantenha fidelidade total ao logo.
+
+==============================
+PALETA DESTA GERAÇÃO
+==============================
+${paleta}.
+Cores sempre SATURADAS, VIBRANTES, aparência NEON / LUXUOSA. O fundo pode conter gradientes fortes, fumaça colorida, luzes, partículas, faíscas, raios e brilho radial. Use paleta DIFERENTE das últimas artes enviadas como referência.
+
+==============================
+TIPOGRAFIA
+==============================
+Textos ENORMES, extremamente legíveis, em NEGRITO, com aparência 3D ou semi-3D. Misturar branco, dourado, amarelo neon, azul neon e vermelho intenso. Aplicar CONTORNO forte e SOMBRA. O título principal do dia ("${input.dia}") deve DOMINAR a composição visual.
+
+==============================
+ESTRUTURA DA ARTE (em blocos)
+==============================
+1. CABEÇALHO: logo "NOVO GLOREX PRESENCIAL" + título do dia/evento: "${input.dia}".
+2. FAIXA DE ABERTURA em destaque: "ABERTURA ${input.abertura}".
+3. HORÁRIOS E PREMIAÇÕES organizados em LINHAS HORIZONTAIS, com os horários SEMPRE alinhados na lateral ESQUERDA, cada horário colado exatamente ao prêmio correspondente. Cada linha com ícone de RELÓGIO ao lado do horário. NUNCA cobrir horários com caixas, textos ou imagens. Espaçamento limpo e organização perfeita:
 ${input.jogadas.map((j) => `   ${j.horario} — ${j.descricao}`).join("\n")}
-4. Bloco especial de destaque: "HOJE DIA ${input.bolaDoDia} — BOLA DO DIA" com uma bola de bingo grande mostrando o número.
-${input.premioBingo ? `5. Texto explicativo: "NAS JOGADAS ANUNCIADAS, QUEM BATER O BINGO COM A BOLA ${input.bolaDoDia}, PRÊMIO DE BINGO MAIS ${input.premioBingo}"` : ""}
-6. Rodapé com frase forte e chamativa: "${input.slogan}"
-${input.observacoes ? `\nObservações extras: ${input.observacoes}` : ""}
+4. DESTAQUE DA "BOLA DO DIA": bola de bingo GIGANTE altamente destacada com brilho intenso, normalmente na área central/intermediária da arte, mostrando o número "${input.bolaDoDia}".
+${input.premioBingo ? `5. BLOCO ESPECIAL: "NAS JOGADAS ANUNCIADAS, QUEM BATER O BINGO COM A BOLA ${input.bolaDoDia}, PRÊMIO DE BINGO MAIS ${input.premioBingo}".` : ""}
+6. RODAPÉ CHAMATIVO com a frase: "${input.slogan}" (estilo "NÃO PERCAM!!!", "BOA SORTE", "SEXTA ESPECIAL", "DIA DAS MÃES", "CAIXA DE PICANHA" — adapte o tom).
+${input.observacoes ? `\nObservações extras do briefing: ${input.observacoes}` : ""}
 
 ==============================
 ELEMENTOS VISUAIS OBRIGATÓRIOS
 ==============================
-- Bolas de bingo grandes com números bem legíveis.
-- Relógios pequenos ao lado de cada horário.
-- Ícones de dinheiro, cédulas, moedas, troféu e trevo da sorte espalhados.
-- Quando houver prêmio físico citado (airfryer, frigobar, kit churrasco, cervejas, carnes nobres, eletrodomésticos), incluir ILUSTRAÇÃO REALISTA do item — sem usar marcas famosas reais.
-- Luzes explosivas e brilho nos valores principais.
-- Tipografia BOLD, impactante, fácil de ler à distância, hierarquia forte.
-- Textos centralizados e com máxima legibilidade.
+- Bolas de bingo GIGANTES com números bem destacados.
+- Relógios ao lado de cada horário.
+- Dinheiro brasileiro (cédulas reais R$) voando.
+- Confetes, estrelas brilhantes, luzes neon, faíscas, partículas luminosas, fumaça colorida.
+- Efeitos visuais de cassino premium.
+
+==============================
+PREMIAÇÕES FÍSICAS (quando citadas)
+==============================
+Quando aparecer item físico (airfryer, frigobar, caixa de picanha, kit churrasco, carnes premium, cervejas geladas, churrasco), ilustrar de forma REALISTA e PREMIUM, como anúncio comercial LUXUOSO — bem iluminado, apetitoso, chamativo:
+- Airfryer moderna cheia de carnes nobres.
+- Frigobar cheio de cervejas geladas.
+- Caixa de picanha, kit churrasco completo, carnes premium.
+- Churrasco apetitoso.
+NUNCA usar marcas famosas reais nos produtos.
+
+==============================
+LAYOUT
+==============================
+Composição MUITO organizada visualmente. Nenhum texto pode ficar tampado, cortado ou sobreposto incorretamente. Cada informação tem seu espaço próprio. Evitar poluição visual mesmo com muitos elementos.
+
+==============================
+EFEITOS
+==============================
+Glow neon, reflexos, profundidade, iluminação cinematográfica, sombra intensa, brilhos metálicos, gradientes fortes, contornos luminosos, efeito cassino premium.
+
+==============================
+CLIMA
+==============================
+Emoção, urgência, expectativa, sorte, diversão, riqueza, evento lotado, energia de cassino/bingo moderno.
 
 ==============================
 REGRAS CRÍTICAS
 ==============================
 - NÃO inventar informações além das fornecidas acima.
 - Manter TODOS os horários, números e valores EXATAMENTE como enviados.
-- NÃO cortar textos importantes — tudo precisa caber dentro do cartaz.
+- NÃO cortar, cobrir ou sobrepor textos importantes — especialmente os HORÁRIOS na coluna esquerda.
 - NÃO usar marcas famosas reais nos produtos ilustrados.
 - TUDO em PORTUGUÊS BRASILEIRO. Nenhuma palavra em inglês.
-- Cada arte deve ser ÚNICA — varie disposição dos blocos, decorações e enquadramento em relação a artes anteriores (use as imagens anteriores apenas como referência de marca, escolhendo paleta DIFERENTE da última).
+- Cada arte deve ser ÚNICA — varie disposição dos blocos, decorações e enquadramento em relação às artes anteriores enviadas como referência, e use paleta DIFERENTE da última.
 
 Devolva APENAS a imagem final, sem texto extra.`;
 
