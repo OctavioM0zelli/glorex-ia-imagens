@@ -136,9 +136,7 @@ function Index() {
   const [resetKey, setResetKey] = useState(0);
   const [input, setInput] = useState("");
   const [artsCount, setArtsCount] = useState(() => loadArts().length);
-  const [online, setOnline] = useState(() =>
-    typeof navigator === "undefined" ? true : navigator.onLine,
-  );
+  const [online, setOnline] = useState(true);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
