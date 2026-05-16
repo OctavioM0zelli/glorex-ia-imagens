@@ -517,19 +517,28 @@ function Index() {
             className="min-h-[56px] flex-1 resize-none"
             autoFocus
           />
-          <Button
-            type="submit"
-            disabled={isLoading || !input.trim() || !online}
-            size="icon"
-            className="h-11 w-11 shrink-0"
-            title={!online ? "Sem conexão" : undefined}
-          >
-            {isLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
+          {isLoading ? (
+            <Button
+              type="button"
+              onClick={() => stop()}
+              size="icon"
+              variant="destructive"
+              className="h-11 w-11 shrink-0"
+              title="Parar geração"
+            >
+              <Square className="h-4 w-4 fill-current" />
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              disabled={!input.trim() || !online}
+              size="icon"
+              className="h-11 w-11 shrink-0"
+              title={!online ? "Sem conexão" : undefined}
+            >
               <Send className="h-4 w-4" />
-            )}
-          </Button>
+            </Button>
+          )}
         </form>
       </footer>
     </div>
