@@ -478,6 +478,16 @@ function Index() {
             Sem conexão — a geração de artes está pausada até voltar a internet.
           </div>
         )}
+        {inCooldown && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex items-center justify-center gap-2 bg-amber-500/10 px-4 py-1.5 text-xs font-medium text-amber-600 dark:text-amber-400"
+          >
+            <Gauge className="h-3.5 w-3.5" />
+            Limite de requisições atingido — aguarde {cooldownSecs}s antes de tentar de novo.
+          </div>
+        )}
       </header>
 
       <main ref={scrollRef} className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6">
