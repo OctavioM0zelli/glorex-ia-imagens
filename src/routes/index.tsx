@@ -488,8 +488,9 @@ function Index() {
             <MessageBubble
               key={m.id}
               message={m}
-              canRegenerate={!isLoading && online}
+              canRegenerate={!isLoading && online && !inCooldown}
               onRegenerate={() => {
+                if (inCooldown) return;
                 // Acha a última mensagem do user antes desta mensagem com arte
                 let briefing = "";
                 for (let i = idx - 1; i >= 0; i--) {
