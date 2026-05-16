@@ -195,7 +195,7 @@ export const Route = createFileRoute("/api/chat")({
               };
             }
 
-            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL (formato flyer 1024x1536) para o "NOVO GLOREX PRESENCIAL" seguindo EXATAMENTE este briefing:
+            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL (formato flyer 1080x1920 (vertical 9:16)) para o "NOVO GLOREX PRESENCIAL" seguindo EXATAMENTE este briefing:
 
 Dia: ${input.dia}
 Abertura: ${input.abertura}
@@ -222,7 +222,7 @@ REGRAS DE DESIGN OBRIGATÓRIAS:
             })()}.
 - Use cores impactantes e contrastantes — cada arte deve PARECER DIFERENTE da anterior, exatamente como nos templates de referência (que alternam fundos pretos, vermelhos, azuis, dourados).
 - Inclua no topo a LOGO "NOVO GLOREX PRESENCIAL" — use a PRIMEIRA imagem de referência exatamente como está, mantendo proporções, formato e cores originais. NÃO altere a logo.
-- Layout vertical estilo flyer (1024x1536): cabeçalho com logo + dia/abertura, blocos com ícone de relógio para cada jogada (horário grande + descrição), uma seção de destaque para a "BOLA DO DIA" com bola de bingo numerada, rodapé com slogan.
+- Layout vertical estilo flyer (1080x1920 (vertical 9:16)): cabeçalho com logo + dia/abertura, blocos com ícone de relógio para cada jogada (horário grande + descrição), uma seção de destaque para a "BOLA DO DIA" com bola de bingo numerada, rodapé com slogan.
 - Tipografia bold, impactante, fácil de ler à distância.
 - Use ilustrações realistas dos prêmios mencionados (kit churrasco, airfryer com carnes, frigobar com cervejas, caixa de picanha, etc.) quando citados.
 
