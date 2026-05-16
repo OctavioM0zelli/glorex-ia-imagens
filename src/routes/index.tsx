@@ -275,8 +275,6 @@ function Index() {
     setResetKey((k) => k + 1);
   };
 
-  const handleClearArts = undefined;
-  void handleClearArts;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
