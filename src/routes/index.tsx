@@ -278,25 +278,69 @@ function Index() {
       console.warn("Falha ao salvar histórico:", err);
     }
 
-    // Save any newly generated arts (async, fire-and-forget)
+    // Resize newly generated arts to 1080x1920, save them, and update the message.
     (async () => {
       let added = false;
-      for (const m of messages) {
+      let mutated = false;
+      const nextMessages = messages.map((m) => ({
+        ...m,
+        parts: m.parts.map((part) => {
+          if (part.type !== "tool-gerar_arte_glorex") return part;
+          const p = part as unknown as ArtePart;
+          const url = p.output?.imageDataUrl;
+          if (p.state !== "output-available" || !p.output?.ok || !url) return part;
+          const sig = url.slice(0, 80);
+          if (processedArtSignatures.current.has(sig)) return part;
+          processedArtSignatures.current.add(sig);
+          // mark as needing async resize below
+          return { ...part, __needsResize: true, __sig: sig } as typeof part;
+        }),
+      }));
+      // Collect signatures that need resize
+      const tasks: Array<{ sig: string; url: string }> = [];
+      for (const m of nextMessages) {
         for (const part of m.parts) {
-          if (part.type === "tool-gerar_arte_glorex") {
+          const tagged = part as unknown as { __needsResize?: boolean; __sig?: string };
+          if (tagged.__needsResize) {
             const p = part as unknown as ArtePart;
-            if (p.state === "output-available" && p.output?.ok && p.output.imageDataUrl) {
-              const before = loadArts().length;
-              await saveArt(p.output.imageDataUrl);
-              const after = loadArts().length;
-              if (after > before) added = true;
-            }
+            tasks.push({ sig: tagged.__sig!, url: p.output!.imageDataUrl! });
           }
         }
       }
+      if (tasks.length === 0) return;
+      const resized = new Map<string, string>();
+      for (const t of tasks) {
+        const out = await resizeDataUrlToExact(t.url, 1080, 1920);
+        resized.set(t.sig, out);
+        const before = loadArts().length;
+        await saveArt(out);
+        const after = loadArts().length;
+        if (after > before) added = true;
+      }
+      // Apply resized URLs back to messages
+      setMessages((prev) =>
+        prev.map((m) => ({
+          ...m,
+          parts: m.parts.map((part) => {
+            if (part.type !== "tool-gerar_arte_glorex") return part;
+            const p = part as unknown as ArtePart;
+            const url = p.output?.imageDataUrl;
+            if (!url) return part;
+            const sig = url.slice(0, 80);
+            const newUrl = resized.get(sig);
+            if (!newUrl || newUrl === url) return part;
+            mutated = true;
+            return {
+              ...part,
+              output: { ...p.output!, imageDataUrl: newUrl },
+            } as typeof part;
+          }),
+        })),
+      );
       if (added) setArtsCount(loadArts().length);
+      void mutated;
     })();
-  }, [messages, hydrated]);
+  }, [messages, hydrated, setMessages]);
 
   // Auto-scroll
   useEffect(() => {
