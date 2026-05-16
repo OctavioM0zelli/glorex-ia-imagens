@@ -1,50 +1,32 @@
 ## Objetivo
-
-Sempre que a geração de arte falhar, mostrar ao usuário **a causa categorizada** (referências, quota, timeout, auth, permissão, modelo, safety, rede) junto com o **requestId completo**, sem depender de o Gemini repetir o erro corretamente em texto livre.
+Gerar artes em **1080×1920** usando **`gemini-3-pro-image-preview`** em vez do Nano Banana atual.
 
 ## Mudanças
 
 ### 1. `src/routes/api/chat.ts`
-
-- Adicionar tipo `ArteErrorCategory = "references" | "quota" | "auth" | "permission" | "model_not_found" | "bad_request" | "upstream" | "safety" | "timeout" | "network" | "unknown"`.
-- Em cada `return { ok: false, ... }` da tool `gerar_arte_glorex`, incluir o campo `category` correspondente:
-  - falha de `getGlorexReferences` → `"references"`
-  - HTTP 429 → `"quota"`
-  - HTTP 401 → `"auth"`
-  - HTTP 403 → `"permission"`
-  - HTTP 404 → `"model_not_found"`
-  - HTTP 400 → `"bad_request"`
-  - HTTP 5xx → `"upstream"`
-  - resposta sem imagem → `"safety"`
-  - `AbortError` → `"timeout"`
-  - demais exceções → `"network"`
-- Atualizar `toModelOutput` para repassar a categoria ao Gemini, ex.:
-  `"A FERRAMENTA FALHOU (categoria: ${category}). NÃO diga que a arte foi gerada. Repasse ao usuário: \"${error}\""`.
+- `GOOGLE_IMAGE_MODEL`: `"gemini-2.5-flash-image"` → `"gemini-3-pro-image-preview"`.
+- `GOOGLE_TIMEOUT_MS`: `90_000` → `150_000` (Pro é mais lento).
+- Em `callGoogleImage`, o body passa a incluir:
+  ```ts
+  generationConfig: {
+    responseModalities: ["IMAGE", "TEXT"],
+    imageConfig: { aspectRatio: "9:16" },
+  }
+  ```
+- No `promptText` da tool, trocar menção `1024x1536` por `1080x1920 (proporção 9:16)`.
 
 ### 2. `src/routes/index.tsx`
-
-- Estender o tipo `ArtePart.output` com `category?: string`.
-- Criar `CATEGORY_META`:
-  ```ts
-  const CATEGORY_META: Record<string, { label: string; icon: LucideIcon }> = {
-    references: { label: "Falha ao carregar referências da marca", icon: ImageOff },
-    quota:      { label: "Cota do Google atingida",                icon: Gauge },
-    auth:       { label: "Chave do Google inválida",               icon: KeyRound },
-    permission: { label: "Sem permissão para o modelo",            icon: Lock },
-    model_not_found: { label: "Modelo não encontrado",             icon: SearchX },
-    bad_request:{ label: "Requisição rejeitada",                   icon: AlertTriangle },
-    upstream:   { label: "Serviço do Google instável",             icon: ServerCrash },
-    safety:     { label: "Bloqueio de segurança",                  icon: ShieldAlert },
-    timeout:    { label: "Tempo esgotado",                         icon: TimerOff },
-    network:    { label: "Falha de rede",                          icon: WifiOff },
-    unknown:    { label: "Erro desconhecido",                      icon: AlertTriangle },
-  };
-  ```
-- Reescrever o card de erro (último bloco de `ArteToolPart` + o estado `output-error`) para:
-  1. Ícone + label da categoria em destaque
-  2. Mensagem detalhada (`out.error`)
-  3. Linha técnica monospace com `HTTP X · status · code · id <requestId completo>`
-- Mostrar `requestId` inteiro (remover `.slice(0, 8)`).
+- Adicionar helper `resizeDataUrlToExact(dataUrl, 1080, 1920)`:
+  - Carrega a imagem via `<img>` + `decode()`.
+  - Cria canvas 1080×1920, desenha com `drawImage` cobrindo todo o canvas (cover, centralizado).
+  - Exporta PNG via `canvas.toDataURL("image/png")`.
+- No `useEffect` que processa novas artes (`messages` change):
+  - Antes de `saveArt(...)`, redimensionar `imageDataUrl` para 1080×1920.
+  - Atualizar a parte da mensagem (via `setMessages`) com o novo dataURL para que o `<img>` e o link de Download usem a versão final 1080×1920.
+- Atualizar texto do loader: "Gerando arte com Nano Banana 2..." → "Gerando arte com Gemini 3 Pro Image (1080×1920)...".
 
 ### Out of scope
-Sem mudanças em banco, dependências, ou lógica de geração. Apenas categorização + apresentação.
+Sem alteração em banco, auth, ou na lógica de variação de paleta/fundo.
+
+### Risco
+Se a chave gratuita do Google AI Studio do usuário não tiver acesso ao preview, o card de erro categorizado (`model_not_found` / `permission`) já mostrará isso claramente — sem regressão silenciosa.

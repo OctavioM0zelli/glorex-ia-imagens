@@ -19,11 +19,11 @@ Seu trabalho:
 
 const MAX_ARTES_GERADAS = 5;
 const MAX_ART_DATAURL_LENGTH = 900_000;
-const GOOGLE_TIMEOUT_MS = 90_000;
+const GOOGLE_TIMEOUT_MS = 150_000;
 
-// Modelo de imagem do Google (Nano Banana). Disponível na cota gratuita
-// generosa do tier free do Google AI Studio.
-const GOOGLE_IMAGE_MODEL = "gemini-2.5-flash-image";
+// Modelo de imagem do Google. Pro Preview entrega imagens grandes (~1080x1920
+// em 9:16) com qualidade superior ao Nano Banana.
+const GOOGLE_IMAGE_MODEL = "gemini-3-pro-image-preview";
 // Modelo de texto para o chat. Cota gratuita ~1500 req/dia.
 const GOOGLE_TEXT_MODEL = "gemini-2.5-flash";
 
@@ -73,7 +73,10 @@ async function callGoogleImage(opts: {
       },
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+        generationConfig: {
+          responseModalities: ["IMAGE", "TEXT"],
+          imageConfig: { aspectRatio: "9:16" },
+        },
       }),
       signal: controller.signal,
     });
