@@ -772,7 +772,7 @@ function ArteToolPart({
     return (
       <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
         <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        Gerando arte com Gemini 3 Pro Image (1080×1920)... pode levar até 2 min.
+        Gerando arte com Nano Banana 2 (1080×1920)... pode levar até 2 min.
       </div>
     );
   }
