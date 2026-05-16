@@ -250,26 +250,54 @@ Devolva APENAS a imagem final, sem texto extra.`;
 
               if (!res.ok) {
                 const text = await res.text();
+                // Tenta extrair o erro estruturado do Google
+                let googleStatus: string | undefined;
+                let googleMessage: string | undefined;
+                let googleCode: string | number | undefined;
+                try {
+                  const parsedErr = JSON.parse(text) as {
+                    error?: { code?: number | string; message?: string; status?: string };
+                  };
+                  googleStatus = parsedErr.error?.status;
+                  googleMessage = parsedErr.error?.message;
+                  googleCode = parsedErr.error?.code;
+                } catch {
+                  /* corpo não é JSON */
+                }
+
                 let userMsg: string;
                 if (res.status === 429) {
-                  userMsg =
-                    "Cota diária gratuita do Google atingida. Tente novamente em algumas horas (reset à meia-noite Pacífico) ou no dia seguinte.";
-                } else if (res.status === 401 || res.status === 403) {
-                  userMsg =
-                    "Chave do Google inválida ou sem permissão para gerar imagens. Verifique em aistudio.google.com/apikey.";
+                  userMsg = `429 — Cota gratuita do Google atingida${googleMessage ? `: ${googleMessage}` : ""}. Tente novamente em algumas horas (reset à meia-noite Pacífico) ou amanhã.`;
+                } else if (res.status === 401) {
+                  userMsg = `401 — Chave do Google inválida ou expirada${googleMessage ? `: ${googleMessage}` : ""}. Gere uma nova em aistudio.google.com/apikey.`;
+                } else if (res.status === 403) {
+                  userMsg = `403 — Chave sem permissão para o modelo ${GOOGLE_IMAGE_MODEL}${googleMessage ? `: ${googleMessage}` : ""}. Verifique se a Generative Language API está habilitada no projeto.`;
+                } else if (res.status === 404) {
+                  userMsg = `404 — Modelo ${GOOGLE_IMAGE_MODEL} não encontrado${googleMessage ? `: ${googleMessage}` : ""}. Pode ter sido renomeado ou removido.`;
+                } else if (res.status === 400) {
+                  userMsg = `400 — Requisição rejeitada pelo Google${googleMessage ? `: ${googleMessage}` : ""}.`;
                 } else if (res.status >= 500) {
-                  userMsg =
-                    "O serviço de imagem do Google está instável agora. Tente novamente em instantes.";
+                  userMsg = `${res.status} — Serviço de imagem do Google instável agora${googleMessage ? ` (${googleMessage})` : ""}. Tente novamente em instantes.`;
                 } else {
-                  userMsg = `Falha ao gerar imagem (${res.status}).`;
+                  userMsg = `Falha ao gerar imagem (HTTP ${res.status})${googleMessage ? `: ${googleMessage}` : ""}.`;
                 }
                 logEvent({
                   kind: "gen-fail",
                   requestId,
                   status: res.status,
+                  googleStatus,
+                  googleCode,
+                  googleMessage: googleMessage?.slice(0, 300),
                   body: text.slice(0, 300),
                 });
-                return { ok: false as const, error: userMsg, requestId };
+                return {
+                  ok: false as const,
+                  error: userMsg,
+                  httpStatus: res.status,
+                  googleStatus,
+                  googleCode,
+                  requestId,
+                };
               }
 
               const data = (await res.json()) as {
@@ -300,10 +328,17 @@ Devolva APENAS a imagem final, sem texto extra.`;
               }
 
               if (!imageDataUrl) {
-                logEvent({ kind: "gen-fail", requestId, reason: "no-image-in-response" });
+                // Tenta capturar texto de explicação do modelo (ex: bloqueio de safety)
+                const textOut = partsOut.map((p) => p.text).filter(Boolean).join(" ").slice(0, 300);
+                logEvent({
+                  kind: "gen-fail",
+                  requestId,
+                  reason: "no-image-in-response",
+                  modelText: textOut,
+                });
                 return {
                   ok: false as const,
-                  error: "O modelo não retornou imagem. Tente novamente.",
+                  error: `O modelo respondeu mas não devolveu imagem${textOut ? ` (motivo: ${textOut})` : ""}. Pode ser bloqueio de segurança — tente reformular.`,
                   requestId,
                 };
               }
@@ -321,19 +356,22 @@ Devolva APENAS a imagem final, sem texto extra.`;
                 },
               };
             } catch (err) {
+              const errMsg = err instanceof Error ? err.message : String(err);
               const isAbort =
                 err instanceof Error &&
-                (err.name === "AbortError" || err.message.includes("aborted"));
+                (err.name === "AbortError" || errMsg.includes("aborted"));
               logEvent({
                 kind: "gen-exception",
                 requestId,
-                error: err instanceof Error ? err.message : String(err),
+                errorName: err instanceof Error ? err.name : "unknown",
+                error: errMsg,
               });
+              const userMsg = isAbort
+                ? `Timeout — geração demorou mais de ${Math.round(GOOGLE_TIMEOUT_MS / 1000)}s e foi cancelada. Tente de novo.`
+                : `Falha de rede ao chamar o Google (${errMsg.slice(0, 120)}). Verifique conexão / DNS.`;
               return {
                 ok: false as const,
-                error: isAbort
-                  ? "A geração demorou demais e foi cancelada. Tente de novo."
-                  : "Não foi possível conectar ao serviço de imagem.",
+                error: userMsg,
                 requestId,
               };
             }
@@ -344,7 +382,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
               type: "text" as const,
               value: result.ok
                 ? "Arte do Novo Glorex gerada com sucesso. A imagem já foi entregue ao usuário na interface."
-                : `Falha ao gerar a arte: ${result.error ?? "erro desconhecido"}`,
+                : `A FERRAMENTA FALHOU e NÃO gerou imagem alguma. NÃO diga que a arte foi gerada. Apenas peça desculpas brevemente e repasse este erro exato ao usuário: "${result.error ?? "erro desconhecido"}".`,
             };
           },
         });
