@@ -132,14 +132,24 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 function Index() {
-  const [initial] = useState<UIMessage[]>(loadInitial);
+  // Hidratação: começa vazio em SSR e no primeiro render do cliente,
+  // depois carrega do localStorage em useEffect para evitar mismatch.
+  const [initial, setInitial] = useState<UIMessage[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const [resetKey, setResetKey] = useState(0);
   const [input, setInput] = useState("");
-  const [artsCount, setArtsCount] = useState(() => loadArts().length);
+  const [artsCount, setArtsCount] = useState(0);
   const [online, setOnline] = useState(true);
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Carrega histórico e artes depois da hidratação
+  useEffect(() => {
+    setInitial(loadInitial());
+    setArtsCount(loadArts().length);
+    setHydrated(true);
+  }, []);
 
   // Online/offline + install prompt listeners
   useEffect(() => {
@@ -197,7 +207,7 @@ function Index() {
   );
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
-    id: `glorex-chat-${resetKey}`,
+    id: `glorex-chat-${resetKey}-${hydrated ? "h" : "s"}`,
     messages: initial,
     transport,
   });
@@ -205,6 +215,7 @@ function Index() {
   // Persist messages + capture generated arts
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!hydrated) return; // não sobrescreve antes do load inicial
     if (messages.length === 0) {
       try {
         window.localStorage.removeItem(STORAGE_KEY);
@@ -237,7 +248,7 @@ function Index() {
       }
       if (added) setArtsCount(loadArts().length);
     })();
-  }, [messages]);
+  }, [messages, hydrated]);
 
   // Auto-scroll
   useEffect(() => {
@@ -472,6 +483,10 @@ type ArtePart = {
     ok: boolean;
     imageDataUrl?: string;
     error?: string;
+    httpStatus?: number;
+    googleStatus?: string;
+    googleCode?: string | number;
+    requestId?: string;
   };
   errorText?: string;
 };
@@ -489,7 +504,8 @@ function ArteToolPart({ part }: { part: ArtePart }) {
   if (part.state === "output-error") {
     return (
       <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-        Não consegui gerar a arte. {part.errorText ?? ""}
+        <div className="font-medium">Não consegui gerar a arte.</div>
+        {part.errorText && <div className="mt-1 text-xs opacity-80">{part.errorText}</div>}
       </div>
     );
   }
@@ -519,9 +535,19 @@ function ArteToolPart({ part }: { part: ArtePart }) {
     );
   }
 
+  const out = part.output;
+  const meta: string[] = [];
+  if (out?.httpStatus) meta.push(`HTTP ${out.httpStatus}`);
+  if (out?.googleStatus) meta.push(out.googleStatus);
+  if (out?.googleCode) meta.push(`code ${out.googleCode}`);
+  if (out?.requestId) meta.push(`id ${out.requestId.slice(0, 8)}`);
   return (
     <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-      {part.output?.error ?? "Falha ao gerar a arte."}
+      <div className="font-medium">Falha ao gerar a arte</div>
+      <div className="mt-1">{out?.error ?? "Erro desconhecido."}</div>
+      {meta.length > 0 && (
+        <div className="mt-1 font-mono text-[11px] opacity-70">{meta.join(" · ")}</div>
+      )}
     </div>
   );
 }
