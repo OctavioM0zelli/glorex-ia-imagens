@@ -117,6 +117,36 @@ async function compressDataUrl(dataUrl: string, maxSize = 540, quality = 0.68): 
   }
 }
 
+// Redimensiona a arte para EXATAMENTE 1080x1920 (object-fit: cover, centralizado).
+async function resizeDataUrlToExact(
+  dataUrl: string,
+  targetW = 1080,
+  targetH = 1920,
+): Promise<string> {
+  if (typeof window === "undefined") return dataUrl;
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = dataUrl;
+    await img.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    // cover: escala para preencher o canvas, recortando o excesso
+    const scale = Math.max(targetW / img.width, targetH / img.height);
+    const drawW = img.width * scale;
+    const drawH = img.height * scale;
+    const dx = (targetW - drawW) / 2;
+    const dy = (targetH - drawH) / 2;
+    ctx.drawImage(img, dx, dy, drawW, drawH);
+    return canvas.toDataURL("image/png");
+  } catch {
+    return dataUrl;
+  }
+}
+
 async function saveArt(dataUrl: string) {
   if (typeof window === "undefined") return;
   try {
