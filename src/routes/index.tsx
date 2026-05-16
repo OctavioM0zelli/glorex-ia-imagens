@@ -12,6 +12,7 @@ import {
   Lock,
   SearchX,
   Send,
+  Square,
   ServerCrash,
   ShieldAlert,
   Sparkles,
