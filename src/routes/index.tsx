@@ -190,6 +190,7 @@ function Index() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const processedArtSignatures = useRef<Set<string>>(new Set());
 
   // Carrega histórico e artes depois da hidratação
   useEffect(() => {
