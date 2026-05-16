@@ -264,6 +264,7 @@ function Index() {
   }, [status]);
 
   const isLoading = status === "submitted" || status === "streaming";
+  const visibleMessages = hydrated ? messages : [];
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -354,10 +355,10 @@ function Index() {
       </header>
 
       <main ref={scrollRef} className="mx-auto w-full max-w-3xl flex-1 overflow-y-auto px-4 py-6">
-        {messages.length === 0 ? <EmptyState /> : null}
+        {visibleMessages.length === 0 ? <EmptyState /> : null}
 
         <div className="space-y-6">
-          {messages.map((m) => (
+          {visibleMessages.map((m) => (
             <MessageBubble key={m.id} message={m} />
           ))}
 
