@@ -19,11 +19,11 @@ Seu trabalho:
 
 const MAX_ARTES_GERADAS = 5;
 const MAX_ART_DATAURL_LENGTH = 900_000;
-const GOOGLE_TIMEOUT_MS = 90_000;
+const GOOGLE_TIMEOUT_MS = 150_000;
 
-// Modelo de imagem do Google (Nano Banana). Disponível na cota gratuita
-// generosa do tier free do Google AI Studio.
-const GOOGLE_IMAGE_MODEL = "gemini-2.5-flash-image";
+// Modelo de imagem do Google. Pro Preview entrega imagens grandes (~1080x1920
+// em 9:16) com qualidade superior ao Nano Banana.
+const GOOGLE_IMAGE_MODEL = "gemini-3-pro-image-preview";
 // Modelo de texto para o chat. Cota gratuita ~1500 req/dia.
 const GOOGLE_TEXT_MODEL = "gemini-2.5-flash";
 
@@ -73,7 +73,10 @@ async function callGoogleImage(opts: {
       },
       body: JSON.stringify({
         contents: [{ role: "user", parts }],
-        generationConfig: { responseModalities: ["IMAGE", "TEXT"] },
+        generationConfig: {
+          responseModalities: ["IMAGE", "TEXT"],
+          imageConfig: { aspectRatio: "9:16" },
+        },
       }),
       signal: controller.signal,
     });
@@ -192,7 +195,7 @@ export const Route = createFileRoute("/api/chat")({
               };
             }
 
-            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL (formato flyer 1024x1536) para o "NOVO GLOREX PRESENCIAL" seguindo EXATAMENTE este briefing:
+            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL (formato flyer 1080x1920 (vertical 9:16)) para o "NOVO GLOREX PRESENCIAL" seguindo EXATAMENTE este briefing:
 
 Dia: ${input.dia}
 Abertura: ${input.abertura}
@@ -219,7 +222,7 @@ REGRAS DE DESIGN OBRIGATÓRIAS:
             })()}.
 - Use cores impactantes e contrastantes — cada arte deve PARECER DIFERENTE da anterior, exatamente como nos templates de referência (que alternam fundos pretos, vermelhos, azuis, dourados).
 - Inclua no topo a LOGO "NOVO GLOREX PRESENCIAL" — use a PRIMEIRA imagem de referência exatamente como está, mantendo proporções, formato e cores originais. NÃO altere a logo.
-- Layout vertical estilo flyer (1024x1536): cabeçalho com logo + dia/abertura, blocos com ícone de relógio para cada jogada (horário grande + descrição), uma seção de destaque para a "BOLA DO DIA" com bola de bingo numerada, rodapé com slogan.
+- Layout vertical estilo flyer (1080x1920 (vertical 9:16)): cabeçalho com logo + dia/abertura, blocos com ícone de relógio para cada jogada (horário grande + descrição), uma seção de destaque para a "BOLA DO DIA" com bola de bingo numerada, rodapé com slogan.
 - Tipografia bold, impactante, fácil de ler à distância.
 - Use ilustrações realistas dos prêmios mencionados (kit churrasco, airfryer com carnes, frigobar com cervejas, caixa de picanha, etc.) quando citados.
 

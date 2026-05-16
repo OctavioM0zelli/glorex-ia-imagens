@@ -117,6 +117,36 @@ async function compressDataUrl(dataUrl: string, maxSize = 540, quality = 0.68): 
   }
 }
 
+// Redimensiona a arte para EXATAMENTE 1080x1920 (object-fit: cover, centralizado).
+async function resizeDataUrlToExact(
+  dataUrl: string,
+  targetW = 1080,
+  targetH = 1920,
+): Promise<string> {
+  if (typeof window === "undefined") return dataUrl;
+  try {
+    const img = new Image();
+    img.decoding = "async";
+    img.src = dataUrl;
+    await img.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = targetW;
+    canvas.height = targetH;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return dataUrl;
+    // cover: escala para preencher o canvas, recortando o excesso
+    const scale = Math.max(targetW / img.width, targetH / img.height);
+    const drawW = img.width * scale;
+    const drawH = img.height * scale;
+    const dx = (targetW - drawW) / 2;
+    const dy = (targetH - drawH) / 2;
+    ctx.drawImage(img, dx, dy, drawW, drawH);
+    return canvas.toDataURL("image/png");
+  } catch {
+    return dataUrl;
+  }
+}
+
 async function saveArt(dataUrl: string) {
   if (typeof window === "undefined") return;
   try {
@@ -160,6 +190,7 @@ function Index() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const processedArtSignatures = useRef<Set<string>>(new Set());
 
   // Carrega histórico e artes depois da hidratação
   useEffect(() => {
@@ -247,25 +278,55 @@ function Index() {
       console.warn("Falha ao salvar histórico:", err);
     }
 
-    // Save any newly generated arts (async, fire-and-forget)
+    // Resize newly generated arts to 1080x1920, save them, and update the message.
     (async () => {
-      let added = false;
+      const tasks: Array<{ sig: string; url: string }> = [];
       for (const m of messages) {
         for (const part of m.parts) {
-          if (part.type === "tool-gerar_arte_glorex") {
-            const p = part as unknown as ArtePart;
-            if (p.state === "output-available" && p.output?.ok && p.output.imageDataUrl) {
-              const before = loadArts().length;
-              await saveArt(p.output.imageDataUrl);
-              const after = loadArts().length;
-              if (after > before) added = true;
-            }
-          }
+          if (part.type !== "tool-gerar_arte_glorex") continue;
+          const p = part as unknown as ArtePart;
+          const url = p.output?.imageDataUrl;
+          if (p.state !== "output-available" || !p.output?.ok || !url) continue;
+          const sig = url.slice(0, 80);
+          if (processedArtSignatures.current.has(sig)) continue;
+          processedArtSignatures.current.add(sig);
+          tasks.push({ sig, url });
         }
       }
+      if (tasks.length === 0) return;
+      let added = false;
+      const resized = new Map<string, string>();
+      for (const t of tasks) {
+        const out = await resizeDataUrlToExact(t.url, 1080, 1920);
+        resized.set(t.sig, out);
+        // Marca a versão final como processada também (evita reprocessar
+        // depois que setMessages atualizar a mensagem)
+        processedArtSignatures.current.add(out.slice(0, 80));
+        const before = loadArts().length;
+        await saveArt(out);
+        const after = loadArts().length;
+        if (after > before) added = true;
+      }
+      setMessages((prev) =>
+        prev.map((m) => ({
+          ...m,
+          parts: m.parts.map((part) => {
+            if (part.type !== "tool-gerar_arte_glorex") return part;
+            const p = part as unknown as ArtePart;
+            const url = p.output?.imageDataUrl;
+            if (!url) return part;
+            const newUrl = resized.get(url.slice(0, 80));
+            if (!newUrl || newUrl === url) return part;
+            return {
+              ...part,
+              output: { ...p.output!, imageDataUrl: newUrl },
+            } as typeof part;
+          }),
+        })),
+      );
       if (added) setArtsCount(loadArts().length);
     })();
-  }, [messages, hydrated]);
+  }, [messages, hydrated, setMessages]);
 
   // Auto-scroll
   useEffect(() => {
@@ -566,7 +627,7 @@ function ArteToolPart({ part }: { part: ArtePart }) {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
         <Loader2 className="h-4 w-4 animate-spin text-primary" />
-        Gerando arte com Nano Banana 2...
+        Gerando arte com Gemini 3 Pro Image (1080×1920)... pode levar até 2 min.
       </div>
     );
   }
