@@ -13,8 +13,8 @@ Seu trabalho:
 - Coletar com o usuário os dados da arte: dia da semana e data, horário de abertura, jogadas (horário + valor de cada série), bola do dia, prêmios extras (kit churrasco, airfryer, frigobar, picanha etc.) e o slogan final.
 - Quando tiver dados suficientes, faça um resumo curto e CHAME a tool "gerar_arte_glorex" passando todas as informações estruturadas. Não invente dados que o usuário não forneceu.
 - Após a tool retornar, comente brevemente que a arte foi gerada e ofereça ajustes (mudar paleta, refazer com outra bola do dia, adicionar mais jogadas etc.).
-- Toda arte tem fundo branco com detalhes laranja-amarelados, formato vertical estilo flyer, e SEMPRE inclui a logo "NOVO GLOREX PRESENCIAL".
-- Cada arte gerada deve ser ÚNICA: variar paleta dentro do laranja-amarelado, disposição dos blocos e elementos decorativos. Nunca repetir uma arte anterior.
+- Toda arte é um flyer vertical e SEMPRE inclui a logo "NOVO GLOREX PRESENCIAL".
+- Cada arte gerada deve ser ÚNICA, variando paleta de fundo, disposição dos blocos e elementos decorativos — assim como nos templates de referência (que alternam fundos pretos, vermelhos, azuis, dourados, brancos etc.). Nunca repetir uma arte anterior.
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
 // Limites de payload para evitar payloads gigantes que quebram o gateway
@@ -197,20 +197,29 @@ Slogan final: ${input.slogan}
 ${input.observacoes ? `Observações: ${input.observacoes}` : ""}
 
 REGRAS DE DESIGN OBRIGATÓRIAS:
-- Fundo BRANCO limpo e predominante.
-- Paleta de destaques em LARANJA-AMARELADO vibrante (tons #F5A623, #FFB800, #FF8A00, #FFD24A). Acentos sutis em vermelho ou dourado apenas para contraste.
+- Estilo de FUNDO desta arte: ${(() => {
+              const estilos = [
+                "FUNDO PRETO profundo com explosões de laranja, dourado e vermelho",
+                "FUNDO VERMELHO vibrante com detalhes em dourado e amarelo",
+                "FUNDO AZUL ESCURO/ROYAL com acentos dourados e brancos",
+                "FUNDO DOURADO/AMARELO intenso com detalhes em vermelho e preto",
+                "FUNDO BRANCO com detalhes laranja-amarelados vibrantes",
+                "FUNDO VERDE ESCURO com dourado e laranja para contraste",
+                "FUNDO ROXO/MAGENTA com dourado e amarelo neon",
+                "FUNDO GRADIENTE laranja → vermelho → dourado",
+              ];
+              return estilos[Math.floor(Math.random() * estilos.length)];
+            })()}.
+- Use cores impactantes e contrastantes — cada arte deve PARECER DIFERENTE da anterior, exatamente como nos templates de referência (que alternam fundos pretos, vermelhos, azuis, dourados).
 - Inclua no topo a LOGO "NOVO GLOREX PRESENCIAL" — use a PRIMEIRA imagem de referência exatamente como está, mantendo proporções, formato e cores originais. NÃO altere a logo.
-- Layout vertical estilo flyer: cabeçalho com logo + dia/abertura, blocos com ícone de relógio para cada jogada (horário grande + descrição), uma seção de destaque para a "BOLA DO DIA" com bola de bingo numerada, rodapé com slogan.
+- Layout vertical estilo flyer (1024x1536): cabeçalho com logo + dia/abertura, blocos com ícone de relógio para cada jogada (horário grande + descrição), uma seção de destaque para a "BOLA DO DIA" com bola de bingo numerada, rodapé com slogan.
 - Tipografia bold, impactante, fácil de ler à distância.
 - Use ilustrações realistas dos prêmios mencionados (kit churrasco, airfryer com carnes, frigobar com cervejas, caixa de picanha, etc.) quando citados.
 
-VARIAÇÃO OBRIGATÓRIA (muito importante):
-- As imagens de referência mostram o ESTILO/ESTRUTURA do Glorex, mas você NÃO deve copiá-las. Crie uma arte NOVA e ÚNICA.
-- Varie a paleta exata dentro da família laranja-amarelada (gradientes, tons quentes diferentes a cada arte).
-- Varie a disposição dos blocos de horários (cantos arredondados diferentes, alinhamentos, tamanhos relativos).
-- Varie os elementos decorativos (estrelas, brilhos, moedas douradas, fitas, raios, ícones de troféu/cifrão/relógio).
-- Os templates com fundo escuro (preto, vermelho, azul, dourado) são apenas REFERÊNCIA DE COMPOSIÇÃO — o fundo final deve sempre ser BRANCO com detalhes laranja-amarelados.
-- Se houver imagens de "artes anteriores geradas" entre as referências, use-as para entender o estilo já estabelecido pelo usuário, mas crie algo levemente diferente (paleta, layout, decoração) — nunca uma cópia.
+VARIAÇÃO OBRIGATÓRIA:
+- Crie uma arte NOVA e ÚNICA. Não copie nenhum template nem nenhuma arte anterior.
+- Varie disposição dos blocos, decorações (estrelas, brilhos, moedas, fitas, raios, troféus), tipografia e enquadramento.
+- Se houver "artes anteriores geradas" entre as referências, use-as apenas para manter coerência de marca, mas escolha um esquema de cor de fundo DIFERENTE da última.
 
 - Não escreva nenhum texto em inglês. Tudo em português.
 
