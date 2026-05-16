@@ -195,43 +195,61 @@ export const Route = createFileRoute("/api/chat")({
               };
             }
 
-            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL (formato flyer 1080x1920 (vertical 9:16)) para o "NOVO GLOREX PRESENCIAL" seguindo EXATAMENTE este briefing:
-
-Dia: ${input.dia}
-Abertura: ${input.abertura}
-Jogadas:
-${input.jogadas.map((j) => `- ${j.horario} → ${j.descricao}`).join("\n")}
-Bola do dia: ${input.bolaDoDia}
-${input.premioBingo ? `Prêmio extra de bingo: ${input.premioBingo}` : ""}
-Slogan final: ${input.slogan}
-${input.observacoes ? `Observações: ${input.observacoes}` : ""}
-
-REGRAS DE DESIGN OBRIGATÓRIAS:
-- Estilo de FUNDO desta arte: ${(() => {
-              const estilos = [
-                "FUNDO PRETO profundo com explosões de laranja, dourado e vermelho",
-                "FUNDO VERMELHO vibrante com detalhes em dourado e amarelo",
-                "FUNDO AZUL ESCURO/ROYAL com acentos dourados e brancos",
-                "FUNDO DOURADO/AMARELO intenso com detalhes em vermelho e preto",
-                "FUNDO BRANCO com detalhes laranja-amarelados vibrantes",
-                "FUNDO VERDE ESCURO com dourado e laranja para contraste",
-                "FUNDO ROXO/MAGENTA com dourado e amarelo neon",
-                "FUNDO GRADIENTE laranja → vermelho → dourado",
+            const paleta = (() => {
+              const paletas = [
+                "VERMELHO + PRETO + DOURADO — vermelho vibrante de fundo, blocos pretos, destaques dourados/amarelos brilhantes",
+                "AZUL + VERDE — azul royal profundo de fundo com acentos em verde neon, detalhes dourados e brancos",
+                "ROXO + ROSA — fundo roxo/magenta com explosões em rosa neon e dourado",
+                "AMARELO + BRANCO — fundo amarelo intenso com blocos brancos, contornos pretos e detalhes vermelhos",
+                "VERDE NEON + PRETO — fundo preto profundo com explosões em verde neon, dourado e branco",
               ];
-              return estilos[Math.floor(Math.random() * estilos.length)];
-            })()}.
-- Use cores impactantes e contrastantes — cada arte deve PARECER DIFERENTE da anterior, exatamente como nos templates de referência (que alternam fundos pretos, vermelhos, azuis, dourados).
-- Inclua no topo a LOGO "NOVO GLOREX PRESENCIAL" — use a PRIMEIRA imagem de referência exatamente como está, mantendo proporções, formato e cores originais. NÃO altere a logo.
-- Layout vertical estilo flyer (1080x1920 (vertical 9:16)): cabeçalho com logo + dia/abertura, blocos com ícone de relógio para cada jogada (horário grande + descrição), uma seção de destaque para a "BOLA DO DIA" com bola de bingo numerada, rodapé com slogan.
-- Tipografia bold, impactante, fácil de ler à distância.
-- Use ilustrações realistas dos prêmios mencionados (kit churrasco, airfryer com carnes, frigobar com cervejas, caixa de picanha, etc.) quando citados.
+              return paletas[Math.floor(Math.random() * paletas.length)];
+            })();
 
-VARIAÇÃO OBRIGATÓRIA:
-- Crie uma arte NOVA e ÚNICA. Não copie nenhum template nem nenhuma arte anterior.
-- Varie disposição dos blocos, decorações (estrelas, brilhos, moedas, fitas, raios, troféus), tipografia e enquadramento.
-- Se houver "artes anteriores geradas" entre as referências, use-as apenas para manter coerência de marca, mas escolha um esquema de cor de fundo DIFERENTE da última.
+            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL (formato cartaz 1080x1920, proporção 9:16) para o "NOVO GLOREX PRESENCIAL", no estilo de CARTAZ POPULAR DE BINGO BRASILEIRO — visual chamativo, alto contraste, cores vibrantes, composição cheia de energia.
 
-- Não escreva nenhum texto em inglês. Tudo em português.
+PALETA PRINCIPAL DESTA GERAÇÃO: ${paleta}.
+
+==============================
+IDENTIDADE VISUAL OBRIGATÓRIA
+==============================
+- LOGO PRINCIPAL no topo: "NOVO GLOREX" em letras GRANDES, estilo 3D, dourado/amarelo com contorno branco e sombra forte. Use a PRIMEIRA imagem de referência como base e mantenha fidelidade ao logo.
+- Selo logo abaixo do logo: "PRESENCIAL".
+- Fundo com gradientes fortes, brilho, estrelas, luzes radiais, confetes, textura pontilhada e elementos de sorte (trevos, moedas, cédulas).
+- Estilo popular, impactante, promocional, parecido com cartazes de bingo e sorteios presenciais. EVITAR visual minimalista.
+
+==============================
+ESTRUTURA DO CARTAZ (de cima para baixo)
+==============================
+1. Topo grande com o DIA DA SEMANA em destaque: "${input.dia}"
+2. Faixa de abertura em destaque: "ABERTURA ${input.abertura}"
+3. Lista de HORÁRIOS E PRÊMIOS em blocos arredondados, cada bloco com ícone de relógio à esquerda:
+${input.jogadas.map((j) => `   ${j.horario} — ${j.descricao}`).join("\n")}
+4. Bloco especial de destaque: "HOJE DIA ${input.bolaDoDia} — BOLA DO DIA" com uma bola de bingo grande mostrando o número.
+${input.premioBingo ? `5. Texto explicativo: "NAS JOGADAS ANUNCIADAS, QUEM BATER O BINGO COM A BOLA ${input.bolaDoDia}, PRÊMIO DE BINGO MAIS ${input.premioBingo}"` : ""}
+6. Rodapé com frase forte e chamativa: "${input.slogan}"
+${input.observacoes ? `\nObservações extras: ${input.observacoes}` : ""}
+
+==============================
+ELEMENTOS VISUAIS OBRIGATÓRIOS
+==============================
+- Bolas de bingo grandes com números bem legíveis.
+- Relógios pequenos ao lado de cada horário.
+- Ícones de dinheiro, cédulas, moedas, troféu e trevo da sorte espalhados.
+- Quando houver prêmio físico citado (airfryer, frigobar, kit churrasco, cervejas, carnes nobres, eletrodomésticos), incluir ILUSTRAÇÃO REALISTA do item — sem usar marcas famosas reais.
+- Luzes explosivas e brilho nos valores principais.
+- Tipografia BOLD, impactante, fácil de ler à distância, hierarquia forte.
+- Textos centralizados e com máxima legibilidade.
+
+==============================
+REGRAS CRÍTICAS
+==============================
+- NÃO inventar informações além das fornecidas acima.
+- Manter TODOS os horários, números e valores EXATAMENTE como enviados.
+- NÃO cortar textos importantes — tudo precisa caber dentro do cartaz.
+- NÃO usar marcas famosas reais nos produtos ilustrados.
+- TUDO em PORTUGUÊS BRASILEIRO. Nenhuma palavra em inglês.
+- Cada arte deve ser ÚNICA — varie disposição dos blocos, decorações e enquadramento em relação a artes anteriores (use as imagens anteriores apenas como referência de marca, escolhendo paleta DIFERENTE da última).
 
 Devolva APENAS a imagem final, sem texto extra.`;
 
