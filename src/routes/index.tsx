@@ -10,6 +10,7 @@ import {
   KeyRound,
   Loader2,
   Lock,
+  RefreshCw,
   SearchX,
   Send,
   Square,
