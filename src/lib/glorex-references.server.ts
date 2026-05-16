@@ -1,10 +1,20 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
 type Ref = { dataUrl: string; mime: string };
 
 let cached: { logo: Ref; templates: Ref[] } | null = null;
 
 async function fetchAsset(origin: string, file: string, mime: string): Promise<Ref> {
-  const res = await fetch(`${origin}/glorex/${file}`);
-  if (!res.ok) throw new Error(`Falha ao carregar referência ${file}: ${res.status}`);
+  let res: Response;
+  try {
+    res = await fetch(`${origin}/glorex/${file}`);
+  } catch {
+    const buf = await readFile(join(process.cwd(), "public", "glorex", file));
+    return { dataUrl: `data:${mime};base64,${Buffer.from(buf).toString("base64")}`, mime };
+  }
+
+  if (!res.ok) throw new Error(`Falha ao carregar referência ${file}: HTTP ${res.status}`);
   const buf = new Uint8Array(await res.arrayBuffer());
   let bin = "";
   for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
