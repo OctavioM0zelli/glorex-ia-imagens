@@ -294,6 +294,7 @@ function Index() {
 
   const handleNewChat = () => {
     setMessages([]);
+    setInitial([]);
     if (typeof window !== "undefined") {
       try {
         window.localStorage.removeItem(STORAGE_KEY);
