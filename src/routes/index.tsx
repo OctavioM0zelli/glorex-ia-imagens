@@ -588,7 +588,13 @@ function MessageBubble({
             );
           }
           if (part.type === "tool-gerar_arte_glorex") {
-            return <ArteToolPart key={i} part={part as unknown as ArtePart} />;
+            return (
+              <ArteToolPart
+                key={i}
+                part={part as unknown as ArtePart}
+                onDelete={onDeleteArt}
+              />
+            );
           }
           return null;
         })}
