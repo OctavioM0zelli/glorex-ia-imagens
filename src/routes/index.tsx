@@ -562,7 +562,13 @@ function ExampleCard({ text }: { text: string }) {
   );
 }
 
-function MessageBubble({ message }: { message: UIMessage }) {
+function MessageBubble({
+  message,
+  onDeleteArt,
+}: {
+  message: UIMessage;
+  onDeleteArt?: (dataUrl: string) => void;
+}) {
   const isUser = message.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
