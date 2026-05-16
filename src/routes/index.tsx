@@ -451,7 +451,30 @@ function Index() {
 
         <div className="space-y-6">
           {visibleMessages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+            <MessageBubble
+              key={m.id}
+              message={m}
+              onDeleteArt={(dataUrl) => {
+                removeArtByPrefix(dataUrl.slice(0, 80));
+                setArtsCount(loadArts().length);
+                setMessages((prev) =>
+                  prev
+                    .map((msg) =>
+                      msg.id === m.id
+                        ? {
+                            ...msg,
+                            parts: msg.parts.filter((p) => {
+                              if (p.type !== "tool-gerar_arte_glorex") return true;
+                              const pp = p as unknown as ArtePart;
+                              return pp.output?.imageDataUrl !== dataUrl;
+                            }),
+                          }
+                        : msg,
+                    )
+                    .filter((msg) => msg.parts.length > 0),
+                );
+              }}
+            />
           ))}
 
           {status === "submitted" && (
