@@ -596,10 +596,16 @@ function Index() {
           ) : (
             <Button
               type="submit"
-              disabled={!input.trim() || !online}
+              disabled={!input.trim() || !online || inCooldown}
               size="icon"
               className="h-11 w-11 shrink-0"
-              title={!online ? "Sem conexão" : undefined}
+              title={
+                !online
+                  ? "Sem conexão"
+                  : inCooldown
+                    ? `Aguarde ${cooldownSecs}s (limite atingido)`
+                    : undefined
+              }
             >
               <Send className="h-4 w-4" />
             </Button>
