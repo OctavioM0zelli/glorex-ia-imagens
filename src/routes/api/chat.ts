@@ -23,7 +23,7 @@ const GOOGLE_TIMEOUT_MS = 90_000;
 
 // Modelo de imagem do Google (Nano Banana). Disponível na cota gratuita
 // generosa do tier free do Google AI Studio.
-const GOOGLE_IMAGE_MODEL = "gemini-2.5-flash-image-preview";
+const GOOGLE_IMAGE_MODEL = "gemini-2.5-flash-image";
 // Modelo de texto para o chat. Cota gratuita ~1500 req/dia.
 const GOOGLE_TEXT_MODEL = "gemini-2.5-flash";
 
