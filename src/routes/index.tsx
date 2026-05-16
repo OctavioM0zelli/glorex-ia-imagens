@@ -215,6 +215,7 @@ function Index() {
   // Persist messages + capture generated arts
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!hydrated) return; // não sobrescreve antes do load inicial
     if (messages.length === 0) {
       try {
         window.localStorage.removeItem(STORAGE_KEY);
@@ -247,7 +248,7 @@ function Index() {
       }
       if (added) setArtsCount(loadArts().length);
     })();
-  }, [messages]);
+  }, [messages, hydrated]);
 
   // Auto-scroll
   useEffect(() => {
