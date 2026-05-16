@@ -173,6 +173,19 @@ async function saveArt(dataUrl: string) {
   }
 }
 
+// Remove uma arte salva cujo dataUrl comece com o prefixo informado
+// (usamos prefixo porque a versão salva é comprimida e difere da exibida).
+function removeArtByPrefix(prefix: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const existing = loadArts();
+    const next = existing.filter((a) => !a.dataUrl.startsWith(prefix));
+    window.localStorage.setItem(ARTS_KEY, JSON.stringify(next));
+  } catch {
+    /* ignore */
+  }
+}
+
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
@@ -438,7 +451,30 @@ function Index() {
 
         <div className="space-y-6">
           {visibleMessages.map((m) => (
-            <MessageBubble key={m.id} message={m} />
+            <MessageBubble
+              key={m.id}
+              message={m}
+              onDeleteArt={(dataUrl) => {
+                removeArtByPrefix(dataUrl.slice(0, 80));
+                setArtsCount(loadArts().length);
+                setMessages((prev) =>
+                  prev
+                    .map((msg) =>
+                      msg.id === m.id
+                        ? {
+                            ...msg,
+                            parts: msg.parts.filter((p) => {
+                              if (p.type !== "tool-gerar_arte_glorex") return true;
+                              const pp = p as unknown as ArtePart;
+                              return pp.output?.imageDataUrl !== dataUrl;
+                            }),
+                          }
+                        : msg,
+                    )
+                    .filter((msg) => msg.parts.length > 0),
+                );
+              }}
+            />
           ))}
 
           {status === "submitted" && (
@@ -526,7 +562,13 @@ function ExampleCard({ text }: { text: string }) {
   );
 }
 
-function MessageBubble({ message }: { message: UIMessage }) {
+function MessageBubble({
+  message,
+  onDeleteArt,
+}: {
+  message: UIMessage;
+  onDeleteArt?: (dataUrl: string) => void;
+}) {
   const isUser = message.role === "user";
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
@@ -546,7 +588,13 @@ function MessageBubble({ message }: { message: UIMessage }) {
             );
           }
           if (part.type === "tool-gerar_arte_glorex") {
-            return <ArteToolPart key={i} part={part as unknown as ArtePart} />;
+            return (
+              <ArteToolPart
+                key={i}
+                part={part as unknown as ArtePart}
+                onDelete={onDeleteArt}
+              />
+            );
           }
           return null;
         })}
@@ -622,7 +670,13 @@ function ErrorCard({
   );
 }
 
-function ArteToolPart({ part }: { part: ArtePart }) {
+function ArteToolPart({
+  part,
+  onDelete,
+}: {
+  part: ArtePart;
+  onDelete?: (dataUrl: string) => void;
+}) {
   if (part.state === "input-streaming" || part.state === "input-available") {
     return (
       <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
@@ -642,30 +696,47 @@ function ArteToolPart({ part }: { part: ArtePart }) {
   }
 
   if (part.output?.ok && part.output.imageDataUrl) {
+    const url = part.output.imageDataUrl;
     return (
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <img
-          src={part.output.imageDataUrl}
+          src={url}
           alt="Arte gerada do Novo Glorex"
           loading="lazy"
           decoding="async"
           className="block w-full"
         />
-        <div className="flex items-center justify-between border-t border-border px-3 py-2">
+        <div className="flex items-center justify-between gap-2 border-t border-border px-3 py-2">
           <span className="text-xs text-muted-foreground">Arte gerada por I.A GX</span>
-          <a
-            href={part.output.imageDataUrl}
-            download={`glorex-${Date.now()}.png`}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
-          >
-            <Download className="h-3.5 w-3.5" />
-            Baixar
-          </a>
+          <div className="flex items-center gap-1.5">
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm("Apagar esta arte? Ela também será removida da memória de referência da I.A.")) {
+                    onDelete(url);
+                  }
+                }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2.5 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/20"
+                title="Apagar esta arte"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Apagar
+              </button>
+            )}
+            <a
+              href={url}
+              download={`glorex-${Date.now()}.png`}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+            >
+              <Download className="h-3.5 w-3.5" />
+              Baixar
+            </a>
+          </div>
         </div>
       </div>
     );
   }
-
   const out = part.output;
   return (
     <ErrorCard
