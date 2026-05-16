@@ -451,10 +451,31 @@ function Index() {
         {visibleMessages.length === 0 ? <EmptyState /> : null}
 
         <div className="space-y-6">
-          {visibleMessages.map((m) => (
+          {visibleMessages.map((m, idx) => (
             <MessageBubble
               key={m.id}
               message={m}
+              canRegenerate={!isLoading && online}
+              onRegenerate={() => {
+                // Acha a última mensagem do user antes desta mensagem com arte
+                let briefing = "";
+                for (let i = idx - 1; i >= 0; i--) {
+                  const prev = visibleMessages[i];
+                  if (prev.role !== "user") continue;
+                  const txt = prev.parts
+                    .map((p) => (p.type === "text" ? (p as { text: string }).text : ""))
+                    .join(" ")
+                    .trim();
+                  if (txt) {
+                    briefing = txt;
+                    break;
+                  }
+                }
+                const prompt = briefing
+                  ? `Gere novamente a arte, com uma NOVA variação de paleta de fundo e layout (diferente da anterior). Briefing: ${briefing}`
+                  : "Gere novamente a última arte, com uma NOVA variação de paleta de fundo e layout (diferente da anterior).";
+                sendMessage({ text: prompt });
+              }}
               onDeleteArt={(dataUrl) => {
                 removeArtByPrefix(dataUrl.slice(0, 80));
                 setArtsCount(loadArts().length);
