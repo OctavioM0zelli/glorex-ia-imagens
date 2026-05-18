@@ -117,14 +117,24 @@ async function callGoogleImage(opts: {
         model,
         attempt: i + 1,
       });
-      // 5xx ou 429 → tenta de novo (ou cai pro fallback na última tentativa)
-      if (res.status >= 500 || res.status === 429) {
-        lastRes = res;
+      // 5xx, 429 ou 400 "Unable to process input image" (transitório) → retry / fallback
+      let retriable = res.status >= 500 || res.status === 429;
+      if (!retriable && res.status === 400) {
+        const cloned = res.clone();
+        const bodyText = await cloned.text().catch(() => "");
+        if (/unable to process input image/i.test(bodyText)) {
+          retriable = true;
+          // reembrulha res com o texto já consumido
+          lastRes = new Response(bodyText, { status: res.status, headers: res.headers });
+        }
+      }
+      if (retriable) {
+        if (!lastRes) lastRes = res;
         if (i < models.length - 1) {
           await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
           continue;
         }
-        return res;
+        return lastRes;
       }
       return res;
     } catch (err) {
