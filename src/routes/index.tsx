@@ -357,6 +357,19 @@ function Index() {
   }, [status]);
 
   const isLoading = status === "submitted" || status === "streaming";
+  // Existe uma chamada da tool de gerar arte ainda sem output final?
+  const hasArtInFlight = useMemo(
+    () =>
+      messages.some((m) =>
+        m.parts.some((p) => {
+          if (p.type !== "tool-gerar_arte_glorex") return false;
+          const pp = p as unknown as ArtePart;
+          return pp.state === "input-streaming" || pp.state === "input-available";
+        }),
+      ),
+    [messages],
+  );
+  const isBusy = isLoading || hasArtInFlight;
   const visibleMessages = hydrated ? messages : [];
 
   // Cooldown após 429 (cota / rate limit) para não desperdiçar novas tentativas.
