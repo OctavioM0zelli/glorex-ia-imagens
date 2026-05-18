@@ -718,6 +718,7 @@ const CATEGORY_META: Record<string, { label: string; icon: LucideIcon }> = {
   safety: { label: "Bloqueio de segurança", icon: ShieldAlert },
   timeout: { label: "Tempo esgotado", icon: TimerOff },
   network: { label: "Falha de rede", icon: WifiOff },
+  aborted: { label: "Geração cancelada", icon: Square },
   unknown: { label: "Erro desconhecido", icon: AlertTriangle },
 };
 
