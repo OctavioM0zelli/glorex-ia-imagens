@@ -578,7 +578,9 @@ Devolva APENAS a imagem final, sem texto extra.`;
               type: "text" as const,
               value: result.ok
                 ? "Arte do Novo Glorex gerada com sucesso. A imagem já foi entregue ao usuário na interface."
-                : `A FERRAMENTA FALHOU (categoria: ${result.category ?? "unknown"}) e NÃO gerou imagem alguma. NÃO diga genericamente "não consigo gerar a arte agora". Um card detalhado já foi mostrado ao usuário com a causa e o requestId. Apenas confirme em 1 frase curta a causa: "${result.error ?? "erro desconhecido"}".`,
+                : result.category === "aborted"
+                  ? "Geração cancelada pelo usuário."
+                  : `A FERRAMENTA FALHOU (categoria: ${result.category ?? "unknown"}) e NÃO gerou imagem alguma. NÃO diga genericamente "não consigo gerar a arte agora". Um card detalhado já foi mostrado ao usuário com a causa e o requestId. Apenas confirme em 1 frase curta a causa: "${result.error ?? "erro desconhecido"}".`,
             };
           },
         });
