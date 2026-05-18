@@ -406,23 +406,72 @@ function Index() {
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const text = input.trim();
-    if (!text || isLoading) return;
+    if (!text || isBusy) return;
     if (!online) return;
     if (inCooldown) return;
     setInput("");
     await sendMessage({ text });
   };
 
+  const handleStop = () => {
+    try {
+      stop();
+    } catch {
+      /* ignore */
+    }
+    // Marca qualquer tool-call ainda pendente como cancelada, pra UI
+    // refletir na hora mesmo se o servidor demorar um tick.
+    setMessages((prev) =>
+      prev.map((m) => ({
+        ...m,
+        parts: m.parts.map((part) => {
+          if (part.type !== "tool-gerar_arte_glorex") return part;
+          const pp = part as unknown as ArtePart;
+          if (pp.state === "output-available" || pp.state === "output-error") return part;
+          return {
+            ...part,
+            state: "output-available",
+            output: {
+              ok: false,
+              category: "aborted",
+              error: "Geração cancelada pelo usuário.",
+            },
+          } as typeof part;
+        }),
+      })),
+    );
+  };
+
   const handleNewChat = () => {
-    setMessages([]);
-    setInitial([]);
-    if (typeof window !== "undefined") {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "Iniciar nova conversa? Isso vai apagar todas as imagens geradas e interromper qualquer geração em andamento.",
+      )
+    ) {
+      return;
+    }
+    if (isBusy) {
       try {
-        window.localStorage.removeItem(STORAGE_KEY);
+        stop();
       } catch {
         /* ignore */
       }
     }
+    setMessages([]);
+    setInitial([]);
+    setInput("");
+    setCooldownUntil(0);
+    processedArtSignatures.current.clear();
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+        window.localStorage.removeItem(ARTS_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+    setArtsCount(0);
     setResetKey((k) => k + 1);
   };
 
