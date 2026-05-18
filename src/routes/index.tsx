@@ -644,10 +644,10 @@ function Index() {
             className="min-h-[56px] flex-1 resize-none"
             autoFocus
           />
-          {isLoading ? (
+          {isBusy ? (
             <Button
               type="button"
-              onClick={() => stop()}
+              onClick={handleStop}
               size="icon"
               variant="destructive"
               className="h-11 w-11 shrink-0"
