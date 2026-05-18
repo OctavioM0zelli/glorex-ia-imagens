@@ -432,7 +432,11 @@ Devolva APENAS a imagem final, sem texto extra.`;
                   userMsg = `404 — Modelo ${GOOGLE_IMAGE_MODEL} não encontrado${googleMessage ? `: ${googleMessage}` : ""}. Pode ter sido renomeado ou removido.`;
                 } else if (res.status === 400) {
                   category = "bad_request";
-                  userMsg = `400 — Requisição rejeitada pelo Google${googleMessage ? `: ${googleMessage}` : ""}.`;
+                  if (googleMessage && /unable to process input image/i.test(googleMessage)) {
+                    userMsg = `400 — O Google rejeitou as imagens de referência mesmo após retry e fallback. Geralmente é transitório: tente novamente em alguns segundos.`;
+                  } else {
+                    userMsg = `400 — Requisição rejeitada pelo Google${googleMessage ? `: ${googleMessage}` : ""}.`;
+                  }
                 } else if (res.status >= 500) {
                   category = "upstream";
                   userMsg = `${res.status} — Serviço de imagem do Google instável agora${googleMessage ? ` (${googleMessage})` : ""}. Tente novamente em instantes.`;
