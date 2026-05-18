@@ -21,8 +21,9 @@ const MAX_ARTES_GERADAS = 5;
 const MAX_ART_DATAURL_LENGTH = 900_000;
 const GOOGLE_TIMEOUT_MS = 150_000;
 
-// Modelo de imagem do Google. Nano Banana (2.5 Flash Image) — muito mais
-// barato que o Pro Preview, cabe na cota gratuita mensal pra uso leve.
+// Modelo de imagem do Google. Nano Banana 2 Flash — versão INTERMEDIÁRIA
+// (entre o antigo gemini-2.5-flash-image e o gemini-3-pro-image-preview).
+// Boa qualidade com custo/cota razoáveis.
 const GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
 // Modelo de texto para o chat. Cota gratuita ~1500 req/dia.
 const GOOGLE_TEXT_MODEL = "gemini-2.5-flash";
@@ -57,14 +58,20 @@ async function callGoogleImageOnce(opts: {
   requestId: string;
   model: string;
   attempt: number;
+  parentSignal?: AbortSignal;
 }): Promise<Response> {
-  const { apiKey, parts, requestId, model, attempt } = opts;
+  const { apiKey, parts, requestId, model, attempt, parentSignal } = opts;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
     apiKey,
   )}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GOOGLE_TIMEOUT_MS);
+  const onParentAbort = () => controller.abort();
+  if (parentSignal) {
+    if (parentSignal.aborted) controller.abort();
+    else parentSignal.addEventListener("abort", onParentAbort, { once: true });
+  }
   const startedAt = Date.now();
   try {
     const res = await fetch(url, {
@@ -93,6 +100,7 @@ async function callGoogleImageOnce(opts: {
     return res;
   } finally {
     clearTimeout(timer);
+    if (parentSignal) parentSignal.removeEventListener("abort", onParentAbort);
   }
 }
 
@@ -103,11 +111,13 @@ async function callGoogleImage(opts: {
   apiKey: string;
   parts: GoogleImagePart[];
   requestId: string;
+  parentSignal?: AbortSignal;
 }): Promise<Response> {
-  const { apiKey, parts, requestId } = opts;
+  const { apiKey, parts, requestId, parentSignal } = opts;
   const models = [GOOGLE_IMAGE_MODEL, GOOGLE_IMAGE_MODEL, GOOGLE_IMAGE_FALLBACK_MODEL];
   let lastRes: Response | null = null;
   for (let i = 0; i < models.length; i++) {
+    if (parentSignal?.aborted) throw new DOMException("Aborted", "AbortError");
     const model = models[i];
     try {
       const res = await callGoogleImageOnce({
@@ -116,6 +126,7 @@ async function callGoogleImage(opts: {
         requestId,
         model,
         attempt: i + 1,
+        parentSignal,
       });
       // 5xx, 429 ou 400 "Unable to process input image" (transitório) → retry / fallback
       let retriable = res.status >= 500 || res.status === 429;
@@ -145,6 +156,8 @@ async function callGoogleImage(opts: {
         attempt: i + 1,
         error: err instanceof Error ? err.message : String(err),
       });
+      // Se o usuário cancelou, propaga imediatamente (não tenta de novo).
+      if (parentSignal?.aborted) throw err;
       if (i < models.length - 1) {
         await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
         continue;
@@ -237,7 +250,16 @@ export const Route = createFileRoute("/api/chat")({
               .optional()
               .describe("Detalhes visuais extras pedidos pelo usuário."),
           }),
-          execute: async (input) => {
+          execute: async (input, options) => {
+            const abortSignal = options?.abortSignal;
+            const aborted = () =>
+              ({
+                ok: false as const,
+                category: "aborted" as const,
+                error: "Geração cancelada pelo usuário.",
+                requestId,
+              }) as const;
+            if (abortSignal?.aborted) return aborted();
             const refs = await getGlorexReferences(origin).catch((err) => {
               const detail = err instanceof Error ? err.message : String(err);
               logEvent({
@@ -390,7 +412,9 @@ Devolva APENAS a imagem final, sem texto extra.`;
             }
 
             try {
-              const res = await callGoogleImage({ apiKey: googleKey, parts, requestId });
+              if (abortSignal?.aborted) return aborted();
+              const res = await callGoogleImage({ apiKey: googleKey, parts, requestId, parentSignal: abortSignal });
+              if (abortSignal?.aborted) return aborted();
 
               if (!res.ok) {
                 const text = await res.text();
@@ -525,6 +549,12 @@ Devolva APENAS a imagem final, sem texto extra.`;
               const isAbort =
                 err instanceof Error &&
                 (err.name === "AbortError" || errMsg.includes("aborted"));
+              // Cancelamento pelo usuário (via stop()) chega como AbortError
+              // com o parentSignal já marcado como aborted.
+              if (isAbort && abortSignal?.aborted) {
+                logEvent({ kind: "gen-aborted", requestId });
+                return aborted();
+              }
               logEvent({
                 kind: "gen-exception",
                 requestId,
@@ -548,7 +578,9 @@ Devolva APENAS a imagem final, sem texto extra.`;
               type: "text" as const,
               value: result.ok
                 ? "Arte do Novo Glorex gerada com sucesso. A imagem já foi entregue ao usuário na interface."
-                : `A FERRAMENTA FALHOU (categoria: ${result.category ?? "unknown"}) e NÃO gerou imagem alguma. NÃO diga genericamente "não consigo gerar a arte agora". Um card detalhado já foi mostrado ao usuário com a causa e o requestId. Apenas confirme em 1 frase curta a causa: "${result.error ?? "erro desconhecido"}".`,
+                : result.category === "aborted"
+                  ? "Geração cancelada pelo usuário."
+                  : `A FERRAMENTA FALHOU (categoria: ${result.category ?? "unknown"}) e NÃO gerou imagem alguma. NÃO diga genericamente "não consigo gerar a arte agora". Um card detalhado já foi mostrado ao usuário com a causa e o requestId. Apenas confirme em 1 frase curta a causa: "${result.error ?? "erro desconhecido"}".`,
             };
           },
         });
