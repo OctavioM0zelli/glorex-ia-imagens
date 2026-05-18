@@ -111,11 +111,13 @@ async function callGoogleImage(opts: {
   apiKey: string;
   parts: GoogleImagePart[];
   requestId: string;
+  parentSignal?: AbortSignal;
 }): Promise<Response> {
-  const { apiKey, parts, requestId } = opts;
+  const { apiKey, parts, requestId, parentSignal } = opts;
   const models = [GOOGLE_IMAGE_MODEL, GOOGLE_IMAGE_MODEL, GOOGLE_IMAGE_FALLBACK_MODEL];
   let lastRes: Response | null = null;
   for (let i = 0; i < models.length; i++) {
+    if (parentSignal?.aborted) throw new DOMException("Aborted", "AbortError");
     const model = models[i];
     try {
       const res = await callGoogleImageOnce({
@@ -124,6 +126,7 @@ async function callGoogleImage(opts: {
         requestId,
         model,
         attempt: i + 1,
+        parentSignal,
       });
       // 5xx, 429 ou 400 "Unable to process input image" (transitório) → retry / fallback
       let retriable = res.status >= 500 || res.status === 429;
@@ -153,6 +156,8 @@ async function callGoogleImage(opts: {
         attempt: i + 1,
         error: err instanceof Error ? err.message : String(err),
       });
+      // Se o usuário cancelou, propaga imediatamente (não tenta de novo).
+      if (parentSignal?.aborted) throw err;
       if (i < models.length - 1) {
         await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
         continue;
