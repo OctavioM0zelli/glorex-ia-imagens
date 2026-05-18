@@ -117,14 +117,24 @@ async function callGoogleImage(opts: {
         model,
         attempt: i + 1,
       });
-      // 5xx ou 429 → tenta de novo (ou cai pro fallback na última tentativa)
-      if (res.status >= 500 || res.status === 429) {
-        lastRes = res;
+      // 5xx, 429 ou 400 "Unable to process input image" (transitório) → retry / fallback
+      let retriable = res.status >= 500 || res.status === 429;
+      if (!retriable && res.status === 400) {
+        const cloned = res.clone();
+        const bodyText = await cloned.text().catch(() => "");
+        if (/unable to process input image/i.test(bodyText)) {
+          retriable = true;
+          // reembrulha res com o texto já consumido
+          lastRes = new Response(bodyText, { status: res.status, headers: res.headers });
+        }
+      }
+      if (retriable) {
+        if (!lastRes) lastRes = res;
         if (i < models.length - 1) {
           await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
           continue;
         }
-        return res;
+        return lastRes;
       }
       return res;
     } catch (err) {
@@ -422,7 +432,11 @@ Devolva APENAS a imagem final, sem texto extra.`;
                   userMsg = `404 — Modelo ${GOOGLE_IMAGE_MODEL} não encontrado${googleMessage ? `: ${googleMessage}` : ""}. Pode ter sido renomeado ou removido.`;
                 } else if (res.status === 400) {
                   category = "bad_request";
-                  userMsg = `400 — Requisição rejeitada pelo Google${googleMessage ? `: ${googleMessage}` : ""}.`;
+                  if (googleMessage && /unable to process input image/i.test(googleMessage)) {
+                    userMsg = `400 — O Google rejeitou as imagens de referência mesmo após retry e fallback. Geralmente é transitório: tente novamente em alguns segundos.`;
+                  } else {
+                    userMsg = `400 — Requisição rejeitada pelo Google${googleMessage ? `: ${googleMessage}` : ""}.`;
+                  }
                 } else if (res.status >= 500) {
                   category = "upstream";
                   userMsg = `${res.status} — Serviço de imagem do Google instável agora${googleMessage ? ` (${googleMessage})` : ""}. Tente novamente em instantes.`;
