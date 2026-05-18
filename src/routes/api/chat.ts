@@ -412,7 +412,9 @@ Devolva APENAS a imagem final, sem texto extra.`;
             }
 
             try {
-              const res = await callGoogleImage({ apiKey: googleKey, parts, requestId });
+              if (abortSignal?.aborted) return aborted();
+              const res = await callGoogleImage({ apiKey: googleKey, parts, requestId, parentSignal: abortSignal });
+              if (abortSignal?.aborted) return aborted();
 
               if (!res.ok) {
                 const text = await res.text();
