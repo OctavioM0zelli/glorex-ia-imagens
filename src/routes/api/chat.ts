@@ -549,6 +549,12 @@ Devolva APENAS a imagem final, sem texto extra.`;
               const isAbort =
                 err instanceof Error &&
                 (err.name === "AbortError" || errMsg.includes("aborted"));
+              // Cancelamento pelo usuário (via stop()) chega como AbortError
+              // com o parentSignal já marcado como aborted.
+              if (isAbort && abortSignal?.aborted) {
+                logEvent({ kind: "gen-aborted", requestId });
+                return aborted();
+              }
               logEvent({
                 kind: "gen-exception",
                 requestId,
