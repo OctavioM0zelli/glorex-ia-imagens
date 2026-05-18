@@ -250,7 +250,15 @@ export const Route = createFileRoute("/api/chat")({
               .optional()
               .describe("Detalhes visuais extras pedidos pelo usuário."),
           }),
-          execute: async (input) => {
+          execute: async (input, { abortSignal } = {}) => {
+            const aborted = () =>
+              ({
+                ok: false as const,
+                category: "aborted" as const,
+                error: "Geração cancelada pelo usuário.",
+                requestId,
+              }) as const;
+            if (abortSignal?.aborted) return aborted();
             const refs = await getGlorexReferences(origin).catch((err) => {
               const detail = err instanceof Error ? err.message : String(err);
               logEvent({
