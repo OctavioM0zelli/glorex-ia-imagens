@@ -58,14 +58,20 @@ async function callGoogleImageOnce(opts: {
   requestId: string;
   model: string;
   attempt: number;
+  parentSignal?: AbortSignal;
 }): Promise<Response> {
-  const { apiKey, parts, requestId, model, attempt } = opts;
+  const { apiKey, parts, requestId, model, attempt, parentSignal } = opts;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
     apiKey,
   )}`;
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), GOOGLE_TIMEOUT_MS);
+  const onParentAbort = () => controller.abort();
+  if (parentSignal) {
+    if (parentSignal.aborted) controller.abort();
+    else parentSignal.addEventListener("abort", onParentAbort, { once: true });
+  }
   const startedAt = Date.now();
   try {
     const res = await fetch(url, {
@@ -94,6 +100,7 @@ async function callGoogleImageOnce(opts: {
     return res;
   } finally {
     clearTimeout(timer);
+    if (parentSignal) parentSignal.removeEventListener("abort", onParentAbort);
   }
 }
 
