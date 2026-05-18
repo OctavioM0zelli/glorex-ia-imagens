@@ -250,7 +250,8 @@ export const Route = createFileRoute("/api/chat")({
               .optional()
               .describe("Detalhes visuais extras pedidos pelo usuário."),
           }),
-          execute: async (input, { abortSignal } = {}) => {
+          execute: async (input, options) => {
+            const abortSignal = options?.abortSignal;
             const aborted = () =>
               ({
                 ok: false as const,
