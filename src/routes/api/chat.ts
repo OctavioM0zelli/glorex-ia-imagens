@@ -181,6 +181,111 @@ async function callGoogleImage(opts: {
   throw lastErr ?? new Error("Falha desconhecida na geração de imagem.");
 }
 
+// Fallback final via Lovable AI Gateway (cota separada do Google direto).
+// Quando o Google direto está sobrecarregado (503), tentamos o mesmo modelo
+// pela gateway, que costuma ter capacidade adicional reservada.
+async function callLovableGatewayImage(opts: {
+  parts: GoogleImagePart[];
+  requestId: string;
+  parentSignal?: AbortSignal;
+}): Promise<Response> {
+  const { parts, requestId, parentSignal } = opts;
+  const lovableKey = process.env.LOVABLE_API_KEY;
+  if (!lovableKey) {
+    return new Response(JSON.stringify({ error: { message: "LOVABLE_API_KEY ausente" } }), {
+      status: 500,
+    });
+  }
+
+  // Converte os parts do formato Google → formato OpenAI-compatible (chat.completions).
+  const content: Array<
+    { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
+  > = [];
+  for (const p of parts) {
+    if ("text" in p) content.push({ type: "text", text: p.text });
+    else
+      content.push({
+        type: "image_url",
+        image_url: { url: `data:${p.inline_data.mime_type};base64,${p.inline_data.data}` },
+      });
+  }
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GOOGLE_TIMEOUT_MS);
+  const onParentAbort = () => controller.abort();
+  if (parentSignal) {
+    if (parentSignal.aborted) controller.abort();
+    else parentSignal.addEventListener("abort", onParentAbort, { once: true });
+  }
+  const startedAt = Date.now();
+  try {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${lovableKey}`,
+        "X-Request-Id": requestId,
+      },
+      body: JSON.stringify({
+        model: `google/${GOOGLE_IMAGE_MODEL}`,
+        messages: [{ role: "user", content }],
+        modalities: ["image", "text"],
+      }),
+      signal: controller.signal,
+    });
+    logEvent({
+      kind: "lovable-gateway-image",
+      requestId,
+      status: res.status,
+      durationMs: Date.now() - startedAt,
+    });
+    if (!res.ok) return res;
+    // Re-empacota a resposta da gateway no formato esperado pelo restante do código
+    // (igual ao do Google: candidates[0].content.parts[].inline_data ou inlineData).
+    const data = (await res.json()) as {
+      choices?: Array<{
+        message?: {
+          content?: string;
+          images?: Array<{ image_url?: { url?: string } }>;
+        };
+      }>;
+    };
+    const imgUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
+    const text = data.choices?.[0]?.message?.content ?? "";
+    if (!imgUrl) {
+      return new Response(JSON.stringify({ error: { message: "Sem imagem na resposta da gateway" } }), {
+        status: 502,
+      });
+    }
+    const m = imgUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!m) {
+      return new Response(JSON.stringify({ error: { message: "Formato de imagem inesperado" } }), {
+        status: 502,
+      });
+    }
+    const repacked = {
+      candidates: [
+        {
+          content: {
+            parts: [
+              ...(text ? [{ text }] : []),
+              { inlineData: { mimeType: m[1], data: m[2] } },
+            ],
+          },
+        },
+      ],
+    };
+    return new Response(JSON.stringify(repacked), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  } finally {
+    clearTimeout(timer);
+    if (parentSignal) parentSignal.removeEventListener("abort", onParentAbort);
+  }
+}
+
+
 export const Route = createFileRoute("/api/chat")({
   server: {
     handlers: {
@@ -426,8 +531,29 @@ Devolva APENAS a imagem final, sem texto extra.`;
 
             try {
               if (abortSignal?.aborted) return aborted();
-              const res = await callGoogleImage({ apiKey: googleKey, parts, requestId, parentSignal: abortSignal });
+              let res = await callGoogleImage({ apiKey: googleKey, parts, requestId, parentSignal: abortSignal });
               if (abortSignal?.aborted) return aborted();
+
+              // Fallback final: se o Google direto continuar 5xx/429 após todos os retries,
+              // tenta a Lovable AI Gateway (cota separada).
+              if (!res.ok && (res.status >= 500 || res.status === 429)) {
+                logEvent({
+                  kind: "google-fallback-to-gateway",
+                  requestId,
+                  googleStatus: res.status,
+                });
+                if (abortSignal?.aborted) return aborted();
+                const gatewayRes = await callLovableGatewayImage({
+                  parts,
+                  requestId,
+                  parentSignal: abortSignal,
+                });
+                if (abortSignal?.aborted) return aborted();
+                // Se a gateway funcionou, usa ela; senão, mantém o erro original do Google.
+                if (gatewayRes.ok) res = gatewayRes;
+              }
+
+
 
               if (!res.ok) {
                 const text = await res.text();
