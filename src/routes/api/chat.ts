@@ -114,8 +114,16 @@ async function callGoogleImage(opts: {
   parentSignal?: AbortSignal;
 }): Promise<Response> {
   const { apiKey, parts, requestId, parentSignal } = opts;
-  const models = [GOOGLE_IMAGE_MODEL, GOOGLE_IMAGE_MODEL, GOOGLE_IMAGE_FALLBACK_MODEL];
+  // 5 tentativas alternando modelo principal e fallback, com backoff exponencial + jitter.
+  const models = [
+    GOOGLE_IMAGE_MODEL,
+    GOOGLE_IMAGE_MODEL,
+    GOOGLE_IMAGE_FALLBACK_MODEL,
+    GOOGLE_IMAGE_MODEL,
+    GOOGLE_IMAGE_FALLBACK_MODEL,
+  ];
   let lastRes: Response | null = null;
+  let lastErr: unknown = null;
   for (let i = 0; i < models.length; i++) {
     if (parentSignal?.aborted) throw new DOMException("Aborted", "AbortError");
     const model = models[i];
@@ -135,20 +143,22 @@ async function callGoogleImage(opts: {
         const bodyText = await cloned.text().catch(() => "");
         if (/unable to process input image/i.test(bodyText)) {
           retriable = true;
-          // reembrulha res com o texto já consumido
           lastRes = new Response(bodyText, { status: res.status, headers: res.headers });
         }
       }
       if (retriable) {
         if (!lastRes) lastRes = res;
         if (i < models.length - 1) {
-          await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+          const base = Math.min(8000, 1200 * Math.pow(1.7, i));
+          const jitter = Math.random() * 600;
+          await new Promise((r) => setTimeout(r, base + jitter));
           continue;
         }
         return lastRes;
       }
       return res;
     } catch (err) {
+      lastErr = err;
       logEvent({
         kind: "google-image-throw",
         requestId,
@@ -159,13 +169,16 @@ async function callGoogleImage(opts: {
       // Se o usuário cancelou, propaga imediatamente (não tenta de novo).
       if (parentSignal?.aborted) throw err;
       if (i < models.length - 1) {
-        await new Promise((r) => setTimeout(r, 1500 * (i + 1)));
+        const base = Math.min(8000, 1200 * Math.pow(1.7, i));
+        const jitter = Math.random() * 600;
+        await new Promise((r) => setTimeout(r, base + jitter));
         continue;
       }
       throw err;
     }
   }
-  return lastRes!;
+  if (lastRes) return lastRes;
+  throw lastErr ?? new Error("Falha desconhecida na geração de imagem.");
 }
 
 export const Route = createFileRoute("/api/chat")({
