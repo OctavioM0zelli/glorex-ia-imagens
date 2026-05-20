@@ -531,8 +531,29 @@ Devolva APENAS a imagem final, sem texto extra.`;
 
             try {
               if (abortSignal?.aborted) return aborted();
-              const res = await callGoogleImage({ apiKey: googleKey, parts, requestId, parentSignal: abortSignal });
+              let res = await callGoogleImage({ apiKey: googleKey, parts, requestId, parentSignal: abortSignal });
               if (abortSignal?.aborted) return aborted();
+
+              // Fallback final: se o Google direto continuar 5xx/429 após todos os retries,
+              // tenta a Lovable AI Gateway (cota separada).
+              if (!res.ok && (res.status >= 500 || res.status === 429)) {
+                logEvent({
+                  kind: "google-fallback-to-gateway",
+                  requestId,
+                  googleStatus: res.status,
+                });
+                if (abortSignal?.aborted) return aborted();
+                const gatewayRes = await callLovableGatewayImage({
+                  parts,
+                  requestId,
+                  parentSignal: abortSignal,
+                });
+                if (abortSignal?.aborted) return aborted();
+                // Se a gateway funcionou, usa ela; senão, mantém o erro original do Google.
+                if (gatewayRes.ok) res = gatewayRes;
+              }
+
+
 
               if (!res.ok) {
                 const text = await res.text();
