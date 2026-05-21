@@ -1,17 +1,35 @@
 // Schema estruturado do briefing das artes do Novo Glorex Presencial.
 // Fonte única usada pela tool do chat (/api/chat) e pela rota direta
-// (/api/generate-image). Inclui o builder determinístico do prompt final
-// (Etapa 2 do pipeline: parser → builder → Nano Banana).
+// (/api/generate-image). Inclui o builder determinístico do prompt final.
 
 import { z } from "zod";
 
-export const GlorexRodadaSchema = z.object({
-  horario: z.string().min(1).describe("Horário da rodada, ex: '19:00'."),
-  premio: z.string().min(1).describe("Prêmio da rodada, ex: 'R$ 400'."),
+export const GlorexEventoTipo = z.enum([
+  "rodada_bingo",
+  "sorteio",
+  "premiacao_item",
+  "evento",
+]);
+
+export const GlorexEventoSchema = z.object({
+  horario: z.string().min(1).describe("Horário do evento, ex: '19:00'."),
+  tipo: GlorexEventoTipo.default("evento").describe(
+    "Classificação do evento. 'rodada_bingo' (dinheiro + bingo), 'sorteio' (palavra sorteio), 'premiacao_item' (item físico) ou 'evento' (descrição livre).",
+  ),
+  conteudo: z
+    .string()
+    .min(1)
+    .describe(
+      "Descrição livre do evento — sempre presente. Ex.: 'Série 4 reais', '2° sorteio', 'Caixa de picanha', 'Balão premiado'.",
+    ),
+  valor: z
+    .string()
+    .optional()
+    .describe("Só quando há dinheiro envolvido, ex.: 'R$ 400'. Omita se não houver valor."),
   observacao: z
     .string()
     .optional()
-    .describe("Observação opcional da rodada, ex: 'Série 4' ou 'Kit churrasco'."),
+    .describe("Observação adicional opcional (série, condição, detalhe extra)."),
 });
 
 export const GlorexBriefingSchema = z.object({
@@ -24,7 +42,7 @@ export const GlorexBriefingSchema = z.object({
     .optional()
     .describe("Oferta destacada no topo, ex: '50% em todo o cardápio para consumo local.'"),
   horario_abertura: z.string().min(1).describe("Horário de abertura, ex: '18:30'."),
-  rodadas: z.array(GlorexRodadaSchema).min(1).max(12),
+  programacao: z.array(GlorexEventoSchema).min(1).max(12),
   dia_numero: z
     .string()
     .min(1)
@@ -32,9 +50,7 @@ export const GlorexBriefingSchema = z.object({
   regra_especial: z
     .string()
     .optional()
-    .describe(
-      "Regra especial ligada à bola do dia, ex: 'Nas jogadas anunciadas, quem bater o bingo com a bola 20 ganha prêmio de bingo mais R$ 2.300.'",
-    ),
+    .describe("Regra especial ligada à bola do dia."),
   premio_extra: z
     .string()
     .optional()
@@ -43,6 +59,10 @@ export const GlorexBriefingSchema = z.object({
     .string()
     .optional()
     .describe("Condição complementar, ex: 'Para quem bater o bingo com a série completa.'"),
+  observacao_progressiva: z
+    .string()
+    .optional()
+    .describe("Observação geral/progressiva opcional sobre a programação do dia."),
   chamada_final: z
     .string()
     .default("NÃO PERCAM!!! BOA SORTE!!!")
@@ -50,20 +70,44 @@ export const GlorexBriefingSchema = z.object({
 });
 
 export type GlorexBriefing = z.infer<typeof GlorexBriefingSchema>;
-export type GlorexRodada = z.infer<typeof GlorexRodadaSchema>;
+export type GlorexEvento = z.infer<typeof GlorexEventoSchema>;
 
 // ---------------------------------------------------------------------------
 // Builder determinístico do prompt final enviado ao Nano Banana.
-// Mesma fonte de verdade para o chat e para a rota direta.
 // ---------------------------------------------------------------------------
 
+function describeEventoLine(e: GlorexEvento): string {
+  // Renderiza APENAS conteúdo real — sem rótulos de coluna ("observação",
+  // "conteúdo", "tipo" NUNCA devem aparecer renderizados na arte).
+  const partes: string[] = [];
+  switch (e.tipo) {
+    case "rodada_bingo":
+      if (e.valor) partes.push(`PRÊMIO ${e.valor}`);
+      partes.push(e.conteudo);
+      if (e.observacao) partes.push(e.observacao);
+      return `   ${e.horario}  ⏰  ${partes.join(" — ")}  [tipo: rodada de bingo — valor "${e.valor ?? ""}" em DOURADO 3D gigante, resto em branco]`;
+    case "sorteio":
+      partes.push("SORTEIO");
+      partes.push(e.conteudo);
+      if (e.valor) partes.push(e.valor);
+      if (e.observacao) partes.push(e.observacao);
+      return `   ${e.horario}  ⏰  ${partes.join(" — ")}  [tipo: sorteio — "SORTEIO" em destaque, conteúdo em branco grande, valor em dourado se houver]`;
+    case "premiacao_item":
+      partes.push(e.conteudo);
+      if (e.valor) partes.push(e.valor);
+      if (e.observacao) partes.push(e.observacao);
+      return `   ${e.horario}  ⏰  ${partes.join(" — ")}  [tipo: premiação de item físico — ilustrar o item (${e.conteudo}) de forma realista e premium, texto em branco grande, NÃO inventar valor]`;
+    case "evento":
+    default:
+      partes.push(e.conteudo);
+      if (e.valor) partes.push(e.valor);
+      if (e.observacao) partes.push(e.observacao);
+      return `   ${e.horario}  ⏰  ${partes.join(" — ")}  [tipo: evento — linha sóbria em branco, sem dourado, sem inventar valor]`;
+  }
+}
+
 export function buildGlorexImagePrompt(b: GlorexBriefing, paleta: string): string {
-  const rodadasLinhas = b.rodadas
-    .map((r) => {
-      const obs = r.observacao ? ` — ${r.observacao}` : "";
-      return `   ${r.horario} — ${r.premio}${obs}`;
-    })
-    .join("\n");
+  const programacaoLinhas = b.programacao.map(describeEventoLine).join("\n");
 
   const blocoOferta = b.oferta_topo
     ? `Logo abaixo do título, em BOX DESTACADO bem visível no topo: "${b.oferta_topo}".`
@@ -81,6 +125,10 @@ export function buildGlorexImagePrompt(b: GlorexBriefing, paleta: string): strin
       }`
     : "Omita este bloco se não houver regra especial.";
 
+  const blocoObsProg = b.observacao_progressiva
+    ? `Observação geral da programação (renderizar discreta, em branco, sem dourado): "${b.observacao_progressiva}".`
+    : "";
+
   return `Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo flyer brasileiro popular-premium de BINGO / SORTEIO / CASSINO: vibrante, brilhante, organizada, ALTAMENTE LEGÍVEL. Pensada para Instagram Stories e WhatsApp Status.
 
 ==============================
@@ -94,29 +142,39 @@ PALETA DESTA GERAÇÃO
 ${paleta}. Cores SATURADAS, NEON, LUXUOSAS. Fundo ESCURO, vibrante e contrastante, com brilhos, bordas iluminadas, clima festivo/premiação.
 
 REGRA DE COR PREDOMINANTE:
-- Escolha UMA cor predominante (da paleta acima) e use ela na MAIORIA dos elementos: fundo principal, faixas, blocos de horários/prêmios, molduras, glow e decoração.
-- A arte inteira deve "respirar" essa cor. Dourado/prata aparecem só em destaques.
+- Escolha UMA cor predominante (da paleta acima) e use ela na MAIORIA dos elementos.
+- Dourado/prata aparecem só em destaques.
 - Use paleta DIFERENTE das últimas artes enviadas como referência.
 
 ==============================
 REGRA DE TEXTO E DESTAQUE
 ==============================
 - COR PADRÃO DO TEXTO = BRANCO PURO, com contorno escuro e sombra para contraste sobre o fundo escuro.
-- AMARELO/DOURADO apenas para destaques: valores de prêmio (R$), horários importantes, número da bola do dia e chamada final.
-- Tipografia GRANDE, LIMPA, IMPACTANTE, em NEGRITO, com aparência 3D nos prêmios.
-- Texto NUNCA pode ficar confuso, cortado, sobreposto ou mal distribuído. Priorize CLAREZA acima de excesso de efeitos.
+- AMARELO/DOURADO apenas para destaques: valores de prêmio (R$), horários importantes, número da bola do dia, palavra "SORTEIO" e chamada final.
+- Tipografia GRANDE, LIMPA, IMPACTANTE, em NEGRITO, com aparência 3D nos prêmios em dinheiro.
+- Texto NUNCA pode ficar confuso, cortado, sobreposto ou mal distribuído.
 - TUDO em PORTUGUÊS BRASILEIRO.
+- NUNCA renderizar rótulos de campo do JSON ("observação", "conteúdo", "tipo", "valor"). Mostrar SÓ o conteúdo real.
 
 ==============================
-ESTRUTURA FIXA EM 6 BLOCOS (siga nesta ordem visual)
+ESTRUTURA FIXA EM 6 BLOCOS
 ==============================
 
 1) BLOCO SUPERIOR ESQUERDO — selo/logo "NOVO GLOREX PRESENCIAL" pequeno no canto.
 
-2) BLOCO SUPERIOR PRINCIPAL — título do dia/evento "${b.dia_da_semana_evento}" com GRANDE destaque, dominando o topo (centro/direita). ${blocoOferta}
+2) BLOCO SUPERIOR PRINCIPAL — título do dia/evento "${b.dia_da_semana_evento}" com GRANDE destaque no topo (centro/direita). ${blocoOferta}
 
-3) BLOCO DE HORÁRIOS — começa com "ABERTURA ${b.horario_abertura}" em destaque. Depois, lista as rodadas em LINHAS HORIZONTAIS, uma por linha, com ícone de RELÓGIO ao lado do horário. Horários SEMPRE alinhados na lateral ESQUERDA. Cada linha: horário + prêmio + observação se existir. Prêmios em tipografia 3D destacada (extrusão, contorno grosso, sombra, glow). Rodadas:
-${rodadasLinhas}
+3) BLOCO DE PROGRAMAÇÃO — começa com "ABERTURA ${b.horario_abertura}" em destaque. Depois, lista a programação em LINHAS HORIZONTAIS, uma por linha, com ícone de RELÓGIO ao lado do horário. Horários SEMPRE alinhados na lateral ESQUERDA.
+
+REGRA DE OURO DA PROGRAMAÇÃO:
+- A programação é MISTA: pode ter rodadas de bingo com prêmio em dinheiro, sorteios, premiações de itens físicos (caixa de picanha, balão premiado, cesta, brinde) e eventos sem valor.
+- Horário SEM valor em dinheiro é VÁLIDO e deve aparecer fielmente — NÃO inventar prêmios, NÃO transformar sorteio em rodada com valor, NÃO descartar a linha.
+- Cada linha mostra apenas o conteúdo real (sem rótulos de coluna).
+- Estilizar cada linha de acordo com o tipo indicado entre colchetes.
+
+Programação desta arte:
+${programacaoLinhas}
+${blocoObsProg ? `\n${blocoObsProg}` : ""}
 
 4) BLOCO CENTRAL DE DESTAQUE — texto "DIA ${b.dia_numero}" em GRANDE destaque (número em dourado/amarelo), com uma BOLA DE BINGO GIGANTE central mostrando o número "${b.dia_numero}". Ao redor, bolas decorativas menores numeradas.
 
@@ -127,26 +185,26 @@ ${rodadasLinhas}
 ==============================
 ELEMENTOS DECORATIVOS
 ==============================
-Bolas de bingo numeradas, cédulas de dinheiro brasileiro (R$), brilhos, estrelas, confetes, molduras iluminadas, faíscas, partículas luminosas. Visual forte e comercial, mas SEM ficar bagunçado.
+Bolas de bingo numeradas, cédulas de dinheiro brasileiro (R$), brilhos, estrelas, confetes, molduras iluminadas, faíscas, partículas luminosas. Visual forte e comercial, sem ficar bagunçado.
 
 ==============================
 PREMIAÇÕES FÍSICAS (quando citadas)
 ==============================
-Ilustre item físico (airfryer, frigobar, kit churrasco, picanha, cervejas, carnes) de forma REALISTA e PREMIUM, bem iluminado e apetitoso. NUNCA usar marcas reais.
+Ilustre item físico (airfryer, frigobar, kit churrasco, picanha, cervejas, carnes, caixa de picanha, balão premiado, cesta) de forma REALISTA e PREMIUM, bem iluminado e apetitoso. NUNCA usar marcas reais.
 
 ==============================
 REGRAS CRÍTICAS
 ==============================
-- NÃO inventar horários, valores ou regras.
+- NÃO inventar horários, valores, prêmios ou regras.
+- Horário sem valor em dinheiro NÃO é erro — é programação válida (sorteio, brinde, evento).
 - Manter TODOS os horários, números e valores EXATAMENTE como enviados.
 - NÃO cortar, cobrir ou sobrepor textos — especialmente os HORÁRIOS na coluna esquerda.
-- Cada arte ÚNICA — varie disposição e decoração em relação às artes anteriores; use cor predominante DIFERENTE da última.
+- Cada arte ÚNICA — varie disposição e decoração; cor predominante DIFERENTE da última.
 - Priorize CLAREZA. Em conflito entre estética e clareza, vence a clareza.
 
 Devolva APENAS a imagem final, sem texto extra.`;
 }
 
-// Paleta randômica — extraída para reuso entre chat e rota direta.
 export function pickRandomPaleta(): string {
   const paletas = [
     "VERMELHO + PRETO — vermelho saturado neon e preto profundo, com acentos dourados",
