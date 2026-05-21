@@ -15,8 +15,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 import {
+  fetchBucketArtsAsInline,
   fetchUrlAsInline,
   generateAndStoreImage,
+  normalizeBriefingString,
   type GoogleImagePart,
 } from "@/lib/image-generation.server";
 import { getGlorexReferences } from "@/lib/glorex-references.server";
