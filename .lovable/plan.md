@@ -1,61 +1,60 @@
-## Diagnóstico
+## Arquitetura aprovada
 
-### 1. Botão "Parar" não interrompe de verdade
-- O `stop()` do `useChat` cancela o fetch do cliente e o `streamText` no servidor (já está com `abortSignal: request.signal`).
-- **Mas** a tool `gerar_arte_glorex` faz um `fetch` próprio pra API do Google (até 150s) com um `AbortController` só de timeout. Esse fetch **não recebe** o sinal de abort do request — então quando o usuário aperta Parar durante a geração de imagem, o servidor continua esperando o Google responder e a UI demora pra "soltar".
-- A tool do AI SDK recebe um `abortSignal` no segundo parâmetro do `execute` que precisa ser encadeado.
+```
+Frontend → /api/generate-image (rota TanStack server-side)
+         → Gemini / Nano Banana 2
+         → Supabase Storage (bucket glorex-generated-images)
+         → retorna { success, imageUrl }
+```
 
-### 2. Bloquear mais de 1 geração simultânea
-- Hoje o submit é bloqueado por `isLoading` (que cobre `submitted`/`streaming`). Isso funciona pro botão, mas não impede teoricamente uma segunda chamada se o estado piscar. Falta também uma trava semântica "tem uma arte em andamento".
+Não usaremos Supabase Edge Function: na TanStack Start, uma rota server-side resolve o mesmo problema (segredos no servidor, sem CORS, sem deploy paralelo). A chave `GOOGLE_AI_API_KEY` continua somente no servidor, lida via `process.env`.
 
-### 3. Botão "Nova conversa"
-- Hoje só limpa as **mensagens** (`STORAGE_KEY`). **Não** apaga as artes salvas (`ARTS_KEY`), **não** chama `stop()` se houver geração em andamento e **não** reseta o contador de memória de artes.
+## O que vou criar / mudar
 
-### 4. Modelo Nano Banana 2 (versão intermediária)
-- Verificado em `src/routes/api/chat.ts:26`: `GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image-preview"` → este **é** o "Nano Banana 2 Flash", a versão **intermediária** (entre o `gemini-2.5-flash-image` antigo e o `gemini-3-pro-image-preview`). Está correto. Sem mudança aqui — só vou reforçar no comentário do código.
+### Bucket de Storage ✅ (já executado nas migrations)
+- `glorex-generated-images`, público, limite 20 MB, MIME types: `image/png`, `image/jpeg`, `image/webp`.
+- Sem policy de listagem (URLs públicas continuam funcionando, mas a listagem do bucket fica fechada).
 
----
+### `src/lib/image-generation.server.ts` (novo)
+Helper server-only que:
+- chama o Google `${GOOGLE_IMAGE_MODEL}` (default `gemini-3.1-flash-image-preview`, configurável por env) com retry + fallback para `gemini-2.5-flash-image` e, em última instância, Lovable AI Gateway;
+- decodifica o base64 e faz upload em `glorex-generated-images` com nome único `${Date.now()}-${randomUUID}.${ext}`;
+- devolve `{ ok:true, imageUrl }` ou `{ ok:false, category, error, requestId }` com categorias claras (`quota`, `auth`, `bad_request`, `upstream`, `safety`, `timeout`, `network`, `storage`, `aborted`, …);
+- logs estruturados em cada etapa; respeita `parentSignal` para cancelamento.
 
-## Plano
+### `src/routes/api/generate-image.ts` (novo)
+Rota server-side com o contrato pedido:
+- `POST { prompt, references?: string[], includeBrandReferences?: boolean }` validado por Zod;
+- carrega referências da marca (logo + 6 templates) automaticamente;
+- chama o helper, devolve:
+  - sucesso: `{ success: true, imageUrl, path, requestId }`
+  - erro: `{ success: false, error, category, requestId }` com status HTTP coerente (`429`, `401`, `400`, `502`, `500`).
 
-### Mudanças em `src/routes/api/chat.ts`
+### `src/routes/api/chat.ts` (refatoração)
+- A tool `gerar_arte_glorex` continua existindo (mantém o fluxo conversacional), mas agora usa o helper compartilhado: chama `generateAndStoreImage`, recebe `imageUrl` e devolve no shape `{ ok, imageUrl }` em vez de `imageDataUrl`.
+- Remove o código duplicado de `callGoogleImage` / `callLovableGatewayImage` (movido para o helper).
+- Resultado: a resposta SSE do chat passa a carregar só uma URL curta — fim do payload base64 gigante que estava causando os erros de network/timeout.
 
-1. **Encadear o abort signal até o Google**
-   - Em `callGoogleImageOnce`, aceitar um `parentSignal?: AbortSignal` opcional. Criar o `AbortController` interno (pro timeout) e escutar o `parentSignal` pra também abortar.
-   - Propagar pelo `callGoogleImage`.
-   - No `execute` da tool `gerar_arte_glorex`, capturar o segundo argumento `{ abortSignal }` e passar adiante. Antes do fetch e entre etapas, checar `abortSignal?.aborted` e retornar cedo com `{ ok: false, category: "aborted", error: "Geração cancelada pelo usuário." }`.
-   - Tratar `AbortError` no `catch` retornando o mesmo resultado "aborted" (sem logar como falha do Google).
+### `src/routes/index.tsx` (ajustes mínimos)
+- `ArtePart.output` passa a usar `imageUrl` em vez de `imageDataUrl`.
+- Render do `<img>` aponta direto para a URL pública.
+- Memória de estilo (`ARTS_KEY`) passa a guardar `{ id, imageUrl, createdAt }`; envio de referência para o servidor manda a lista de URLs.
+- Remove a lógica client-side de compressão/resize (não precisa mais — o Storage devolve a imagem original; o Google já recebe `aspectRatio: 9:16`).
+- Mantém: lock de "uma geração por vez" (`isBusy`), botão Parar com abort, botão Nova conversa com confirmação, cooldown de 429, mensagens de erro categorizadas.
 
-2. **Categoria nova `aborted`**
-   - Adicionar `"aborted"` ao union de `category`.
-   - No `toModelOutput`, quando `category === "aborted"`, devolver uma frase curta tipo "Geração cancelada pelo usuário." (o LLM normalmente nem vai ter chance de responder porque o stream também aborta, mas garante consistência).
+### Variáveis necessárias (todas já configuradas ✅)
+- `GOOGLE_AI_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `LOVABLE_API_KEY`.
+- Opcional novo: `GOOGLE_IMAGE_MODEL` (e `GOOGLE_IMAGE_FALLBACK_MODEL`) — só precisa configurar se quiser trocar o modelo sem mexer no código.
 
-### Mudanças em `src/routes/index.tsx`
+## Verificação pós-implementação
 
-3. **Stop button mais responsivo + trava de concorrência**
-   - Computar `hasArtInFlight` a partir de `messages`: existe alguma `tool-gerar_arte_glorex` cujo `state` ainda não é `output-available`/`output-error`. Combinar com `isLoading` num único `isBusy`.
-   - `handleSubmit` bloqueia se `isBusy`.
-   - O botão de Parar fica visível enquanto `isBusy` (cobre tanto "pensando" quanto "gerando arte").
-   - Ao clicar Parar: chamar `stop()` e, defensivamente, marcar qualquer tool-call ainda pendente como `output-available` com `{ ok: false, category: "aborted", error: "Geração cancelada pelo usuário." }` via `setMessages`, pra UI refletir imediatamente mesmo se o servidor demorar um tick a mais.
+- `POST /api/generate-image` com `{ prompt: "..." }` retorna `{ success:true, imageUrl: ".../glorex-generated-images/..." }` e a URL abre a imagem.
+- No chat, gerar uma arte → o card aparece com `<img>` carregado da URL pública (Network mostra GET na Supabase Storage, sem base64 no payload do chat).
+- Erros (429/500/safety) → card de erro amigável com categoria correta.
+- Botão Parar interrompe a geração; Nova conversa limpa tudo; segundo envio é bloqueado enquanto o primeiro roda.
 
-4. **Botão "Nova conversa" robusto**
-   - Trocar `handleNewChat` por uma versão que:
-     1. Se `isBusy`, chama `stop()` primeiro.
-     2. Limpa `STORAGE_KEY` **e** `ARTS_KEY` no `localStorage`.
-     3. Zera `processedArtSignatures.current` (Set de hashes já processados).
-     4. `setMessages([])`, `setInitial([])`, `setArtsCount(0)`, `setInput("")`, `setCooldownUntil(0)`.
-     5. Incrementa `resetKey` (força reinício do `useChat`, dropando qualquer estado interno).
-   - Adicionar um `window.confirm("Iniciar nova conversa? Isso vai apagar todas as imagens geradas e interromper qualquer geração em andamento.")` antes de executar, já que é destrutivo.
+## Fora de escopo
 
-### Verificações pós-implementação
-
-- Apertar "Parar" enquanto aparece "I.A GX está pensando..." → botão volta ao estado normal em <1s e nenhuma imagem é entregue depois.
-- Apertar "Parar" durante a barra de "Gerando imagem com I.A GX" → idem; o card vira "Geração cancelada pelo usuário." e nenhuma imagem nova aparece nas próximas requisições.
-- Tentar enviar nova mensagem enquanto há geração em andamento → bloqueado.
-- "Nova conversa" durante geração ativa → confirma, interrompe, mensagens somem, contador "Memória (N)" some, próxima geração começa do zero sem usar artes antigas como referência.
-- Modelo continua sendo `gemini-3.1-flash-image-preview` (Nano Banana 2 Flash — versão intermediária). Sem alteração de modelo.
-
-### Fora de escopo
-
-- Não vou adicionar fila no servidor nem rate-limit (sandbox sem primitivas adequadas; a trava de concorrência fica no cliente, que é onde o usuário interage).
-- Não vou trocar o modelo de imagem.
+- Não criar Supabase Edge Function (substituída pela rota TanStack equivalente).
+- Não adicionar fila/rate-limit no servidor.
+- Não mudar o prompt artístico nem os templates de referência.
