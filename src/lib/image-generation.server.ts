@@ -185,10 +185,12 @@ export function normalizeGlorexBriefing(b: GlorexBriefing): GlorexBriefing {
     dia_da_semana_evento: normalizeBriefingString(b.dia_da_semana_evento),
     oferta_topo: b.oferta_topo ? normalizeBriefingString(b.oferta_topo) : b.oferta_topo,
     horario_abertura: normalizeBriefingString(b.horario_abertura),
-    rodadas: b.rodadas.map((r) => ({
-      horario: normalizeBriefingString(r.horario),
-      premio: normalizeBriefingString(r.premio),
-      observacao: r.observacao ? normalizeBriefingString(r.observacao) : r.observacao,
+    programacao: b.programacao.map((e) => ({
+      horario: normalizeBriefingString(e.horario),
+      tipo: e.tipo,
+      conteudo: normalizeBriefingString(e.conteudo),
+      valor: e.valor ? normalizeBriefingString(e.valor) : e.valor,
+      observacao: e.observacao ? normalizeBriefingString(e.observacao) : e.observacao,
     })),
     dia_numero: normalizeBriefingString(b.dia_numero),
     regra_especial: b.regra_especial
@@ -198,6 +200,9 @@ export function normalizeGlorexBriefing(b: GlorexBriefing): GlorexBriefing {
     condicao_extra: b.condicao_extra
       ? normalizeBriefingString(b.condicao_extra)
       : b.condicao_extra,
+    observacao_progressiva: b.observacao_progressiva
+      ? normalizeBriefingString(b.observacao_progressiva)
+      : b.observacao_progressiva,
     chamada_final: normalizeBriefingString(b.chamada_final),
   };
 }
