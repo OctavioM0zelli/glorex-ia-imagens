@@ -19,15 +19,28 @@ import {
   fetchUrlAsInline,
   generateAndStoreImage,
   normalizeBriefingString,
+  normalizeGlorexBriefing,
   type GoogleImagePart,
 } from "@/lib/image-generation.server";
 import { getGlorexReferences } from "@/lib/glorex-references.server";
+import {
+  buildGlorexImagePrompt,
+  GlorexBriefingSchema,
+  pickRandomPaleta,
+} from "@/lib/glorex-briefing";
 
-const RequestSchema = z.object({
-  prompt: z.string().min(1).max(8000),
-  references: z.array(z.string().url()).max(10).optional().default([]),
-  includeBrandReferences: z.boolean().optional().default(true),
-});
+const RequestSchema = z.union([
+  z.object({
+    prompt: z.string().min(1).max(8000),
+    references: z.array(z.string().url()).max(10).optional().default([]),
+    includeBrandReferences: z.boolean().optional().default(true),
+  }),
+  z.object({
+    briefing: GlorexBriefingSchema,
+    references: z.array(z.string().url()).max(10).optional().default([]),
+    includeBrandReferences: z.boolean().optional().default(true),
+  }),
+]);
 
 export const Route = createFileRoute("/api/generate-image")({
   server: {
@@ -47,8 +60,11 @@ export const Route = createFileRoute("/api/generate-image")({
         }
 
         const origin = new URL(request.url).origin;
-        const normalizedPrompt = normalizeBriefingString(body.prompt);
-        const parts: GoogleImagePart[] = [{ text: normalizedPrompt }];
+        const promptText =
+          "briefing" in body
+            ? buildGlorexImagePrompt(normalizeGlorexBriefing(body.briefing), pickRandomPaleta())
+            : normalizeBriefingString(body.prompt);
+        const parts: GoogleImagePart[] = [{ text: promptText }];
 
         if (body.includeBrandReferences) {
           try {
