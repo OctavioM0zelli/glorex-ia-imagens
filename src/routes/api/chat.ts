@@ -252,6 +252,20 @@ Devolva APENAS a imagem final, sem texto extra.`;
               }
             }
 
+            // Aprendizado contínuo: últimas N artes do bucket inteiro como
+            // referência adicional de estilo (configurável via GLOREX_BUCKET_REFS_LIMIT).
+            try {
+              const bucketInlines = await fetchBucketArtsAsInline(undefined, abortSignal);
+              for (const inline of bucketInlines) {
+                parts.push({
+                  inline_data: { mime_type: inline.mimeType, data: inline.data },
+                });
+              }
+            } catch {
+              /* refs do bucket são opcionais */
+            }
+
+            // Artes geradas nesta sessão do usuário (URLs vindas do localStorage).
             for (const url of previousArts) {
               if (abortSignal?.aborted) return aborted();
               const inline = await fetchUrlAsInline(url, abortSignal);
@@ -285,9 +299,9 @@ Devolva APENAS a imagem final, sem texto extra.`;
               imageUrl: result.imageUrl,
               requestId: result.requestId,
               resumo: {
-                dia: input.dia,
-                abertura: input.abertura,
-                bolaDoDia: input.bolaDoDia,
+                dia: b.dia,
+                abertura: b.abertura,
+                bolaDoDia: b.bolaDoDia,
               },
             };
           },
