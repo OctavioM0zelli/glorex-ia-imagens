@@ -73,6 +73,16 @@ export const Route = createFileRoute("/api/generate-image")({
           }
         }
 
+        // Aprendizado contínuo: últimas N artes do bucket inteiro.
+        try {
+          const bucketInlines = await fetchBucketArtsAsInline(undefined, request.signal);
+          for (const inline of bucketInlines) {
+            parts.push({ inline_data: { mime_type: inline.mimeType, data: inline.data } });
+          }
+        } catch {
+          /* opcional */
+        }
+
         for (const url of body.references) {
           const inline = await fetchUrlAsInline(url, request.signal);
           if (inline) {
