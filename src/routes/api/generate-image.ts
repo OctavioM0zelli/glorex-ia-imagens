@@ -15,8 +15,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
 import {
+  fetchBucketArtsAsInline,
   fetchUrlAsInline,
   generateAndStoreImage,
+  normalizeBriefingString,
   type GoogleImagePart,
 } from "@/lib/image-generation.server";
 import { getGlorexReferences } from "@/lib/glorex-references.server";
@@ -45,7 +47,8 @@ export const Route = createFileRoute("/api/generate-image")({
         }
 
         const origin = new URL(request.url).origin;
-        const parts: GoogleImagePart[] = [{ text: body.prompt }];
+        const normalizedPrompt = normalizeBriefingString(body.prompt);
+        const parts: GoogleImagePart[] = [{ text: normalizedPrompt }];
 
         if (body.includeBrandReferences) {
           try {
@@ -68,6 +71,16 @@ export const Route = createFileRoute("/api/generate-image")({
               { status: 500, headers: { "X-Request-Id": requestId } },
             );
           }
+        }
+
+        // Aprendizado contínuo: últimas N artes do bucket inteiro.
+        try {
+          const bucketInlines = await fetchBucketArtsAsInline(undefined, request.signal);
+          for (const inline of bucketInlines) {
+            parts.push({ inline_data: { mime_type: inline.mimeType, data: inline.data } });
+          }
+        } catch {
+          /* opcional */
         }
 
         for (const url of body.references) {

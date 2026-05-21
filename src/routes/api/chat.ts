@@ -7,8 +7,10 @@ import { z } from "zod";
 import { getGlorexReferences } from "@/lib/glorex-references.server";
 import {
   dataUrlToInline,
+  fetchBucketArtsAsInline,
   fetchUrlAsInline,
   generateAndStoreImage,
+  normalizeBriefingInput,
   type GoogleImagePart,
 } from "@/lib/image-generation.server";
 
@@ -17,10 +19,16 @@ const SYSTEM_PROMPT = `Você é a I.A GX, assistente do Novo Glorex Presencial e
 Seu trabalho:
 - Conversar em português brasileiro, de forma direta, simpática e objetiva.
 - Coletar com o usuário os dados da arte: dia da semana e data, horário de abertura, jogadas (horário + valor de cada série), bola do dia, prêmios extras (kit churrasco, airfryer, frigobar, picanha etc.) e o slogan final.
-- Quando tiver dados suficientes, faça um resumo curto e CHAME a tool "gerar_arte_glorex" passando todas as informações estruturadas. Não invente dados que o usuário não forneceu.
+- ANTES de chamar a tool, AUTO-CORRIJA o briefing do usuário:
+  • corrija pequenos typos, espaçamento e pontuação;
+  • padronize moeda no formato brasileiro: "400" → "R$ 400", "1000" → "R$ 1.000", "2300" → "R$ 2.300";
+  • reorganize itens claramente relacionados (ex.: horário e prêmio na mesma jogada);
+  • NÃO invente horários, valores ou regras que o usuário não forneceu;
+  • mantenha 100% do sentido original.
+- Quando tiver dados suficientes, faça um resumo curto e CHAME a tool "gerar_arte_glorex" passando todas as informações estruturadas e já normalizadas.
 - Após a tool retornar, comente brevemente que a arte foi gerada e ofereça ajustes (mudar paleta, refazer com outra bola do dia, adicionar mais jogadas etc.).
-- Toda arte é um flyer vertical e SEMPRE inclui a logo "NOVO GLOREX PRESENCIAL".
-- Cada arte gerada deve ser ÚNICA, variando paleta de fundo, disposição dos blocos e elementos decorativos — assim como nos templates de referência (que alternam fundos pretos, vermelhos, azuis, dourados, brancos etc.). Nunca repetir uma arte anterior.
+- Toda arte é um flyer vertical 9:16 e SEMPRE inclui a logo "NOVO GLOREX PRESENCIAL" como SELO PEQUENO no canto superior esquerdo (~15-18% da largura — nunca grande, nunca centralizada).
+- Cada arte gerada deve ser ÚNICA, variando paleta de fundo, disposição dos blocos e elementos decorativos. Nunca repetir uma arte anterior.
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
 const MAX_ARTES_GERADAS = 5;
@@ -144,102 +152,84 @@ export const Route = createFileRoute("/api/chat")({
               };
             }
 
+            // Normaliza moeda (R$), horários e espaçamento antes de montar o prompt.
+            const b = normalizeBriefingInput(input);
+
             const paleta = (() => {
               const paletas = [
-                "VERMELHO + PRETO — vermelho saturado neon e preto profundo, com acentos dourados e brancos brilhantes",
-                "ROXO + ROSA — roxo elétrico e rosa neon vibrante, com glow magenta e detalhes brancos",
+                "VERMELHO + PRETO — vermelho saturado neon e preto profundo, com acentos dourados",
+                "ROXO + ROSA — roxo elétrico e rosa neon vibrante, com glow magenta",
                 "AZUL + ROXO — azul royal e roxo profundo, com glow ciano/violeta e brilhos dourados",
                 "VERDE NEON + PRETO — preto profundo com explosões em verde neon luxuoso e detalhes dourados",
                 "DOURADO + VERMELHO — dourado metálico brilhante sobre vermelho intenso, clima de premiação luxuosa",
-                "LARANJA + AMARELO — laranja saturado e amarelo neon, com brilhos brancos e contornos pretos fortes",
-                "AZUL NEON + PRETO — preto profundo com azul neon elétrico, glow ciano e detalhes prateados/dourados",
+                "LARANJA + AMARELO — laranja saturado e amarelo neon, com contornos pretos fortes",
+                "AZUL NEON + PRETO — preto profundo com azul neon elétrico, glow ciano e detalhes dourados",
               ];
               return paletas[Math.floor(Math.random() * paletas.length)];
             })();
 
-            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL no formato 1080x1920 (proporção 9:16) para o evento do "NOVO GLOREX PRESENCIAL". Estética EXTREMAMENTE chamativa, MODERNA, PROFISSIONAL, inspirada em flyers brasileiros de BINGO / PREMIAÇÕES / CASSINO. A arte deve transmitir EMOÇÃO, URGÊNCIA, SORTE, RIQUEZA e ENTRETENIMENTO. Pensada para Instagram Stories e WhatsApp Status.
+            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo flyer brasileiro popular-premium de BINGO / SORTEIO / CASSINO: vibrante, brilhante, organizada, ALTAMENTE LEGÍVEL. Pensada para Instagram Stories e WhatsApp Status.
 
 ==============================
-ESTILO GERAL
+IDENTIDADE VISUAL — LOGO
 ==============================
-Design ultra vibrante, com iluminação NEON, brilhos intensos, sombras fortes, GLOW colorido, efeitos 3D e tipografia gigante. A arte deve parecer PREMIUM, lotada de informação organizada visualmente sem ficar bagunçada. Misture elementos de cassino, bingo, sorteios e eventos noturnos. Contraste forte entre fundo e textos. Layout dinâmico com caixas, divisórias luminosas, molduras brilhantes e elementos flutuantes.
-
-==============================
-IDENTIDADE VISUAL
-==============================
-- LOGO "NOVO GLOREX PRESENCIAL" SEMPRE posicionada no CANTO SUPERIOR ESQUERDO da arte, em tamanho PEQUENO/COMPACTO (ocupando no máximo ~15-18% da largura da arte), como uma marca-d'água/selo de identidade — NUNCA grande, NUNCA centralizada, NUNCA dominando a composição. Mantenha brilho sutil e fidelidade total ao logo original (use a PRIMEIRA imagem de referência como base). O restante do espaço do topo é livre para título do dia e demais elementos.
+LOGO "NOVO GLOREX PRESENCIAL" SEMPRE no CANTO SUPERIOR ESQUERDO, em tamanho PEQUENO/COMPACTO (~15-18% da largura), nítida e bem visível, mas NUNCA grande, NUNCA centralizada, NUNCA dominando a composição. Use a PRIMEIRA imagem de referência como base do logo.
 
 ==============================
 PALETA DESTA GERAÇÃO
 ==============================
-${paleta}.
-Cores sempre SATURADAS, VIBRANTES, aparência NEON / LUXUOSA. O fundo pode conter gradientes fortes, fumaça colorida, luzes, partículas, faíscas, raios e brilho radial. Use paleta DIFERENTE das últimas artes enviadas como referência.
+${paleta}. Cores SATURADAS, NEON, LUXUOSAS. Fundo ESCURO, vibrante e contrastante, com brilhos, bordas iluminadas, clima festivo/premiação.
 
-REGRA OBRIGATÓRIA DE COR PREDOMINANTE:
-- Escolha UMA cor predominante para esta arte (com base na paleta acima) e use ela na MAIORIA dos elementos visuais: fundo principal, faixas, blocos de horários/prêmios, molduras, glow e detalhes decorativos.
-- Não precisa ser a única cor — cores de apoio e metálicos (dourado, prata) podem aparecer em destaques —, mas a cor predominante deve DOMINAR visualmente a composição (ex: se for vermelho, a arte inteira deve "respirar" vermelho).
-- Cada arte nova deve ter uma cor predominante DIFERENTE da arte anterior.
-
-==============================
-TIPOGRAFIA
-==============================
-Textos ENORMES, extremamente legíveis, em NEGRITO, com aparência 3D ou semi-3D. PREFERÊNCIA FORTE por TEXTO BRANCO na maior parte dos textos (títulos, horários, descrições) — branco puro com contorno escuro e sombra para garantir contraste sobre a cor predominante. Use dourado, amarelo neon ou cores quentes APENAS em destaques pontuais (ex: valor de prêmio principal, número da bola do dia). O título principal do dia ("${input.dia}") deve DOMINAR a composição visual.
+REGRA DE COR PREDOMINANTE:
+- Escolha UMA cor predominante (da paleta acima) e use ela na MAIORIA dos elementos: fundo principal, faixas, blocos de horários/prêmios, molduras, glow e decoração.
+- A arte inteira deve "respirar" essa cor. Dourado/prata aparecem só em destaques.
+- Use paleta DIFERENTE das últimas artes enviadas como referência.
 
 ==============================
-ESTRUTURA DA ARTE (em blocos)
+REGRA DE TEXTO E DESTAQUE
 ==============================
-1. CABEÇALHO: logo PEQUENA no canto superior ESQUERDO + título do dia/evento "${input.dia}" ocupando o centro/direita do topo em destaque gigante.
-2. FAIXA DE ABERTURA em destaque: "ABERTURA ${input.abertura}".
-3. HORÁRIOS E PREMIAÇÕES organizados em LINHAS HORIZONTAIS, com os horários SEMPRE alinhados na lateral ESQUERDA, cada horário colado exatamente ao prêmio correspondente. Cada linha com ícone de RELÓGIO ao lado do horário. NUNCA cobrir horários com caixas, textos ou imagens. O TEXTO DE CADA PRÊMIO deve ser em TIPOGRAFIA 3D DESTACADA — letras em relevo, extrusão visível, contorno grosso, sombra projetada, cores metálicas/neon (dourado, branco brilhante, amarelo neon, vermelho), com glow ao redor, parecendo "saltar" da arte. Cada prêmio precisa CHAMAR A ATENÇÃO visualmente como o elemento mais importante da linha:
-${input.jogadas.map((j) => `   ${j.horario} — ${j.descricao}`).join("\n")}
-4. DESTAQUE DA "BOLA DO DIA": bola de bingo GIGANTE altamente destacada com brilho intenso, normalmente na área central/intermediária da arte, mostrando o número "${input.bolaDoDia}".
-${input.premioBingo ? `5. BLOCO ESPECIAL: "NAS JOGADAS ANUNCIADAS, QUEM BATER O BINGO COM A BOLA ${input.bolaDoDia}, PRÊMIO DE BINGO MAIS ${input.premioBingo}".` : ""}
-6. RODAPÉ CHAMATIVO com a frase: "${input.slogan}" (estilo "NÃO PERCAM!!!", "BOA SORTE", "SEXTA ESPECIAL", "DIA DAS MÃES", "CAIXA DE PICANHA" — adapte o tom).
-${input.observacoes ? `\nObservações extras do briefing: ${input.observacoes}` : ""}
+- COR PADRÃO DO TEXTO = BRANCO PURO, com contorno escuro e sombra para contraste sobre o fundo escuro.
+- AMARELO/DOURADO apenas para destaques: valores de prêmio (R$), horários importantes, número da bola do dia e chamada final.
+- Tipografia GRANDE, LIMPA, IMPACTANTE, em NEGRITO, com aparência 3D nos prêmios.
+- Texto NUNCA pode ficar confuso, cortado, sobreposto ou mal distribuído. Priorize CLAREZA acima de excesso de efeitos.
+- TUDO em PORTUGUÊS BRASILEIRO.
 
 ==============================
-ELEMENTOS VISUAIS OBRIGATÓRIOS
+ESTRUTURA FIXA EM 6 BLOCOS (siga nesta ordem visual)
 ==============================
-- Bolas de bingo GIGANTES com números bem destacados.
-- Relógios ao lado de cada horário.
-- Dinheiro brasileiro (cédulas reais R$) voando.
-- Confetes, estrelas brilhantes, luzes neon, faíscas, partículas luminosas, fumaça colorida.
-- Efeitos visuais de cassino premium.
+
+1) BLOCO SUPERIOR ESQUERDO — selo/logo "NOVO GLOREX PRESENCIAL" pequeno no canto.
+
+2) BLOCO SUPERIOR PRINCIPAL — título do dia/evento "${b.dia}" com GRANDE destaque, dominando o topo (centro/direita). Se houver promoção de cardápio ou oferta extra, mostre em box destacado próximo ao topo.
+
+3) BLOCO DE HORÁRIOS — começa com "ABERTURA ${b.abertura}" em destaque. Depois, lista as rodadas em LINHAS HORIZONTAIS, uma por linha, com ícone de RELÓGIO ao lado do horário. Horários SEMPRE alinhados na lateral ESQUERDA. Cada linha: horário + prêmio + informação adicional se existir. Prêmios em tipografia 3D destacada (extrusão, contorno grosso, sombra, glow). Rodadas:
+${b.jogadas.map((j) => `   ${j.horario} — ${j.descricao}`).join("\n")}
+
+4) BLOCO CENTRAL DE DESTAQUE — texto "DIA ${b.bolaDoDia}" em GRANDE destaque (número em dourado/amarelo), com uma BOLA DE BINGO GIGANTE central mostrando o número "${b.bolaDoDia}". Ao redor, bolas decorativas menores numeradas.
+
+5) BLOCO DE REGRA ESPECIAL — ${b.premioBingo ? `texto explicando a condição da bola do dia: "NAS JOGADAS ANUNCIADAS, QUEM BATER O BINGO COM A BOLA ${b.bolaDoDia} LEVA ${b.premioBingo}". Destaque FORTE no valor do prêmio extra (dourado, 3D). Se houver condição (ex.: "série completa"), mostre com destaque secundário bem claro.` : `omita este bloco se não houver regra especial.`}
+
+6) BLOCO FINAL/CHAMADA — frase final chamativa "${b.slogan ?? "NÃO PERCAM, BOA SORTE!!!"}" fechando a arte com bastante impacto visual (tipografia gigante, dourado/amarelo + branco).
+${b.observacoes ? `\nObservações extras: ${b.observacoes}` : ""}
+
+==============================
+ELEMENTOS DECORATIVOS
+==============================
+Bolas de bingo numeradas, cédulas de dinheiro brasileiro (R$), brilhos, estrelas, confetes, molduras iluminadas, faíscas, partículas luminosas. Visual forte e comercial, mas SEM ficar bagunçado.
 
 ==============================
 PREMIAÇÕES FÍSICAS (quando citadas)
 ==============================
-Quando aparecer item físico (airfryer, frigobar, caixa de picanha, kit churrasco, carnes premium, cervejas geladas, churrasco), ilustrar de forma REALISTA e PREMIUM, como anúncio comercial LUXUOSO — bem iluminado, apetitoso, chamativo:
-- Airfryer moderna cheia de carnes nobres.
-- Frigobar cheio de cervejas geladas.
-- Caixa de picanha, kit churrasco completo, carnes premium.
-- Churrasco apetitoso.
-NUNCA usar marcas famosas reais nos produtos.
-
-==============================
-LAYOUT
-==============================
-Composição MUITO organizada visualmente. Nenhum texto pode ficar tampado, cortado ou sobreposto incorretamente. Cada informação tem seu espaço próprio. Evitar poluição visual mesmo com muitos elementos.
-
-==============================
-EFEITOS
-==============================
-Glow neon, reflexos, profundidade, iluminação cinematográfica, sombra intensa, brilhos metálicos, gradientes fortes, contornos luminosos, efeito cassino premium.
-
-==============================
-CLIMA
-==============================
-Emoção, urgência, expectativa, sorte, diversão, riqueza, evento lotado, energia de cassino/bingo moderno.
+Ilustre item físico (airfryer, frigobar, kit churrasco, picanha, cervejas, carnes) de forma REALISTA e PREMIUM, bem iluminado e apetitoso. NUNCA usar marcas reais.
 
 ==============================
 REGRAS CRÍTICAS
 ==============================
-- NÃO inventar informações além das fornecidas acima.
+- NÃO inventar horários, valores ou regras.
 - Manter TODOS os horários, números e valores EXATAMENTE como enviados.
-- NÃO cortar, cobrir ou sobrepor textos importantes — especialmente os HORÁRIOS na coluna esquerda.
-- NÃO usar marcas famosas reais nos produtos ilustrados.
-- TUDO em PORTUGUÊS BRASILEIRO. Nenhuma palavra em inglês.
-- Cada arte deve ser ÚNICA — varie disposição dos blocos, decorações e enquadramento em relação às artes anteriores enviadas como referência, e use paleta DIFERENTE da última.
+- NÃO cortar, cobrir ou sobrepor textos — especialmente os HORÁRIOS na coluna esquerda.
+- Cada arte ÚNICA — varie disposição e decoração em relação às artes anteriores; use cor predominante DIFERENTE da última.
+- Priorize CLAREZA. Em conflito entre estética e clareza, vence a clareza.
 
 Devolva APENAS a imagem final, sem texto extra.`;
 
@@ -262,6 +252,20 @@ Devolva APENAS a imagem final, sem texto extra.`;
               }
             }
 
+            // Aprendizado contínuo: últimas N artes do bucket inteiro como
+            // referência adicional de estilo (configurável via GLOREX_BUCKET_REFS_LIMIT).
+            try {
+              const bucketInlines = await fetchBucketArtsAsInline(undefined, abortSignal);
+              for (const inline of bucketInlines) {
+                parts.push({
+                  inline_data: { mime_type: inline.mimeType, data: inline.data },
+                });
+              }
+            } catch {
+              /* refs do bucket são opcionais */
+            }
+
+            // Artes geradas nesta sessão do usuário (URLs vindas do localStorage).
             for (const url of previousArts) {
               if (abortSignal?.aborted) return aborted();
               const inline = await fetchUrlAsInline(url, abortSignal);
@@ -295,9 +299,9 @@ Devolva APENAS a imagem final, sem texto extra.`;
               imageUrl: result.imageUrl,
               requestId: result.requestId,
               resumo: {
-                dia: input.dia,
-                abertura: input.abertura,
-                bolaDoDia: input.bolaDoDia,
+                dia: b.dia,
+                abertura: b.abertura,
+                bolaDoDia: b.bolaDoDia,
               },
             };
           },
