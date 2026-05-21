@@ -5,6 +5,12 @@ import { convertToModelMessages, stepCountIs, streamText, tool, type UIMessage }
 import { z } from "zod";
 
 import { getGlorexReferences } from "@/lib/glorex-references.server";
+import {
+  dataUrlToInline,
+  fetchUrlAsInline,
+  generateAndStoreImage,
+  type GoogleImagePart,
+} from "@/lib/image-generation.server";
 
 const SYSTEM_PROMPT = `Você é a I.A GX, assistente do Novo Glorex Presencial especializada em criar artes promocionais para bingos e sorteios.
 
@@ -18,19 +24,12 @@ Seu trabalho:
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
 const MAX_ARTES_GERADAS = 5;
-const MAX_ART_DATAURL_LENGTH = 900_000;
-const GOOGLE_TIMEOUT_MS = 150_000;
-
-// Modelo de imagem do Google. Nano Banana 2 Flash — versão INTERMEDIÁRIA
-// (entre o antigo gemini-2.5-flash-image e o gemini-3-pro-image-preview).
-// Boa qualidade com custo/cota razoáveis.
-const GOOGLE_IMAGE_MODEL = "gemini-3.1-flash-image-preview";
-// Modelo de texto para o chat. Cota gratuita ~1500 req/dia.
 const GOOGLE_TEXT_MODEL = "gemini-2.5-flash";
 
 const RequestSchema = z.object({
   messages: z.array(z.any()).min(1).max(500),
-  artesGeradas: z.array(z.string()).max(MAX_ARTES_GERADAS).optional().default([]),
+  // Agora recebemos URLs públicas de artes anteriores (não mais data URLs).
+  artesGeradas: z.array(z.string().url()).max(MAX_ARTES_GERADAS).optional().default([]),
 });
 
 function logEvent(event: Record<string, unknown>) {
@@ -40,251 +39,6 @@ function logEvent(event: Record<string, unknown>) {
     console.log("log-failed", event);
   }
 }
-
-// Converte um data URL "data:image/png;base64,XXXX" em { mimeType, data }
-function dataUrlToInline(dataUrl: string): { mimeType: string; data: string } | null {
-  const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
-  if (!m) return null;
-  return { mimeType: m[1], data: m[2] };
-}
-
-type GoogleImagePart =
-  | { text: string }
-  | { inline_data: { mime_type: string; data: string } };
-
-async function callGoogleImageOnce(opts: {
-  apiKey: string;
-  parts: GoogleImagePart[];
-  requestId: string;
-  model: string;
-  attempt: number;
-  parentSignal?: AbortSignal;
-}): Promise<Response> {
-  const { apiKey, parts, requestId, model, attempt, parentSignal } = opts;
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(
-    apiKey,
-  )}`;
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), GOOGLE_TIMEOUT_MS);
-  const onParentAbort = () => controller.abort();
-  if (parentSignal) {
-    if (parentSignal.aborted) controller.abort();
-    else parentSignal.addEventListener("abort", onParentAbort, { once: true });
-  }
-  const startedAt = Date.now();
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Request-Id": requestId,
-      },
-      body: JSON.stringify({
-        contents: [{ role: "user", parts }],
-        generationConfig: {
-          responseModalities: ["IMAGE", "TEXT"],
-          imageConfig: { aspectRatio: "9:16" },
-        },
-      }),
-      signal: controller.signal,
-    });
-    logEvent({
-      kind: "google-image",
-      requestId,
-      model,
-      attempt,
-      status: res.status,
-      durationMs: Date.now() - startedAt,
-    });
-    return res;
-  } finally {
-    clearTimeout(timer);
-    if (parentSignal) parentSignal.removeEventListener("abort", onParentAbort);
-  }
-}
-
-// Modelo de fallback quando o principal está sobrecarregado (503/429/UNAVAILABLE).
-const GOOGLE_IMAGE_FALLBACK_MODEL = "gemini-2.5-flash-image";
-
-async function callGoogleImage(opts: {
-  apiKey: string;
-  parts: GoogleImagePart[];
-  requestId: string;
-  parentSignal?: AbortSignal;
-}): Promise<Response> {
-  const { apiKey, parts, requestId, parentSignal } = opts;
-  // 5 tentativas alternando modelo principal e fallback, com backoff exponencial + jitter.
-  const models = [
-    GOOGLE_IMAGE_MODEL,
-    GOOGLE_IMAGE_MODEL,
-    GOOGLE_IMAGE_FALLBACK_MODEL,
-    GOOGLE_IMAGE_MODEL,
-    GOOGLE_IMAGE_FALLBACK_MODEL,
-  ];
-  let lastRes: Response | null = null;
-  let lastErr: unknown = null;
-  for (let i = 0; i < models.length; i++) {
-    if (parentSignal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const model = models[i];
-    try {
-      const res = await callGoogleImageOnce({
-        apiKey,
-        parts,
-        requestId,
-        model,
-        attempt: i + 1,
-        parentSignal,
-      });
-      // 5xx, 429 ou 400 "Unable to process input image" (transitório) → retry / fallback
-      let retriable = res.status >= 500 || res.status === 429;
-      if (!retriable && res.status === 400) {
-        const cloned = res.clone();
-        const bodyText = await cloned.text().catch(() => "");
-        if (/unable to process input image/i.test(bodyText)) {
-          retriable = true;
-          lastRes = new Response(bodyText, { status: res.status, headers: res.headers });
-        }
-      }
-      if (retriable) {
-        if (!lastRes) lastRes = res;
-        if (i < models.length - 1) {
-          const base = Math.min(8000, 1200 * Math.pow(1.7, i));
-          const jitter = Math.random() * 600;
-          await new Promise((r) => setTimeout(r, base + jitter));
-          continue;
-        }
-        return lastRes;
-      }
-      return res;
-    } catch (err) {
-      lastErr = err;
-      logEvent({
-        kind: "google-image-throw",
-        requestId,
-        model,
-        attempt: i + 1,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Se o usuário cancelou, propaga imediatamente (não tenta de novo).
-      if (parentSignal?.aborted) throw err;
-      if (i < models.length - 1) {
-        const base = Math.min(8000, 1200 * Math.pow(1.7, i));
-        const jitter = Math.random() * 600;
-        await new Promise((r) => setTimeout(r, base + jitter));
-        continue;
-      }
-      throw err;
-    }
-  }
-  if (lastRes) return lastRes;
-  throw lastErr ?? new Error("Falha desconhecida na geração de imagem.");
-}
-
-// Fallback final via Lovable AI Gateway (cota separada do Google direto).
-// Quando o Google direto está sobrecarregado (503), tentamos o mesmo modelo
-// pela gateway, que costuma ter capacidade adicional reservada.
-async function callLovableGatewayImage(opts: {
-  parts: GoogleImagePart[];
-  requestId: string;
-  parentSignal?: AbortSignal;
-}): Promise<Response> {
-  const { parts, requestId, parentSignal } = opts;
-  const lovableKey = process.env.LOVABLE_API_KEY;
-  if (!lovableKey) {
-    return new Response(JSON.stringify({ error: { message: "LOVABLE_API_KEY ausente" } }), {
-      status: 500,
-    });
-  }
-
-  // Converte os parts do formato Google → formato OpenAI-compatible (chat.completions).
-  const content: Array<
-    { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } }
-  > = [];
-  for (const p of parts) {
-    if ("text" in p) content.push({ type: "text", text: p.text });
-    else
-      content.push({
-        type: "image_url",
-        image_url: { url: `data:${p.inline_data.mime_type};base64,${p.inline_data.data}` },
-      });
-  }
-
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), GOOGLE_TIMEOUT_MS);
-  const onParentAbort = () => controller.abort();
-  if (parentSignal) {
-    if (parentSignal.aborted) controller.abort();
-    else parentSignal.addEventListener("abort", onParentAbort, { once: true });
-  }
-  const startedAt = Date.now();
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${lovableKey}`,
-        "X-Request-Id": requestId,
-      },
-      body: JSON.stringify({
-        model: `google/${GOOGLE_IMAGE_MODEL}`,
-        messages: [{ role: "user", content }],
-        modalities: ["image", "text"],
-      }),
-      signal: controller.signal,
-    });
-    logEvent({
-      kind: "lovable-gateway-image",
-      requestId,
-      status: res.status,
-      durationMs: Date.now() - startedAt,
-    });
-    if (!res.ok) return res;
-    // Re-empacota a resposta da gateway no formato esperado pelo restante do código
-    // (igual ao do Google: candidates[0].content.parts[].inline_data ou inlineData).
-    const data = (await res.json()) as {
-      choices?: Array<{
-        message?: {
-          content?: string;
-          images?: Array<{ image_url?: { url?: string } }>;
-        };
-      }>;
-    };
-    const imgUrl = data.choices?.[0]?.message?.images?.[0]?.image_url?.url;
-    const text = data.choices?.[0]?.message?.content ?? "";
-    if (!imgUrl) {
-      return new Response(JSON.stringify({ error: { message: "Sem imagem na resposta da gateway" } }), {
-        status: 502,
-      });
-    }
-    const m = imgUrl.match(/^data:([^;]+);base64,(.+)$/);
-    if (!m) {
-      return new Response(JSON.stringify({ error: { message: "Formato de imagem inesperado" } }), {
-        status: 502,
-      });
-    }
-    const repacked = {
-      candidates: [
-        {
-          content: {
-            parts: [
-              ...(text ? [{ text }] : []),
-              { inlineData: { mimeType: m[1], data: m[2] } },
-            ],
-          },
-        },
-      ],
-    };
-    return new Response(JSON.stringify(repacked), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    });
-  } finally {
-    clearTimeout(timer);
-    if (parentSignal) parentSignal.removeEventListener("abort", onParentAbort);
-  }
-}
-
 
 export const Route = createFileRoute("/api/chat")({
   server: {
@@ -313,30 +67,21 @@ export const Route = createFileRoute("/api/chat")({
         }
 
         const messages = parsed.messages as UIMessage[];
-        const artesGeradas = (parsed.artesGeradas ?? []).filter(
-          (arte) => arte.length <= MAX_ART_DATAURL_LENGTH,
-        );
+        const previousArts = (parsed.artesGeradas ?? []).slice(-MAX_ARTES_GERADAS);
         const origin = new URL(request.url).origin;
 
-        // Provider OpenAI-compatível apontando para a API direta do Google
-        // (chave gratuita do usuário). Substitui o Lovable AI Gateway.
         const provider = createOpenAICompatible({
           name: "google-direct",
           baseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
-          headers: {
-            Authorization: `Bearer ${googleKey}`,
-          },
+          headers: { Authorization: `Bearer ${googleKey}` },
         });
         const chatModel = provider(GOOGLE_TEXT_MODEL);
-
-        const previousArts = artesGeradas.slice(-MAX_ARTES_GERADAS);
 
         logEvent({
           kind: "chat-start",
           requestId,
           messageCount: messages.length,
-          receivedArts: parsed.artesGeradas?.length ?? 0,
-          acceptedArts: previousArts.length,
+          previousArts: previousArts.length,
         });
 
         const gerarArte = tool({
@@ -378,6 +123,7 @@ export const Route = createFileRoute("/api/chat")({
                 requestId,
               }) as const;
             if (abortSignal?.aborted) return aborted();
+
             const refs = await getGlorexReferences(origin).catch((err) => {
               const detail = err instanceof Error ? err.message : String(err);
               logEvent({
@@ -393,7 +139,7 @@ export const Route = createFileRoute("/api/chat")({
                 ok: false as const,
                 category: "references" as const,
                 error:
-                  "Falha interna — não consegui carregar as imagens de referência do Novo Glorex para montar a arte. Tente novamente; se continuar, o problema está no carregamento dos arquivos da marca.",
+                  "Falha interna — não consegui carregar as imagens de referência do Novo Glorex.",
                 requestId,
               };
             }
@@ -497,11 +243,7 @@ REGRAS CRÍTICAS
 
 Devolva APENAS a imagem final, sem texto extra.`;
 
-            // Envia TODOS os templates de referência para que o modelo aprenda
-            // o estilo visual da marca (variação de cores, layout, tipografia).
-            const sampledTemplates = refs.templates;
-
-            // Monta partes no formato nativo do Google
+            // Monta partes: prompt + logo + templates + artes anteriores (baixadas das URLs).
             const parts: GoogleImagePart[] = [{ text: promptText }];
 
             const logoInline = dataUrlToInline(refs.logo.dataUrl);
@@ -511,7 +253,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
               });
             }
 
-            for (const t of sampledTemplates) {
+            for (const t of refs.templates) {
               const inline = dataUrlToInline(t.dataUrl);
               if (inline) {
                 parts.push({
@@ -521,7 +263,8 @@ Devolva APENAS a imagem final, sem texto extra.`;
             }
 
             for (const url of previousArts) {
-              const inline = dataUrlToInline(url);
+              if (abortSignal?.aborted) return aborted();
+              const inline = await fetchUrlAsInline(url, abortSignal);
               if (inline) {
                 parts.push({
                   inline_data: { mime_type: inline.mimeType, data: inline.data },
@@ -529,187 +272,34 @@ Devolva APENAS a imagem final, sem texto extra.`;
               }
             }
 
-            try {
-              if (abortSignal?.aborted) return aborted();
-              let res = await callGoogleImage({ apiKey: googleKey, parts, requestId, parentSignal: abortSignal });
-              if (abortSignal?.aborted) return aborted();
+            const result = await generateAndStoreImage({
+              parts,
+              requestId,
+              parentSignal: abortSignal,
+            });
 
-              // Fallback final: se o Google direto continuar 5xx/429 após todos os retries,
-              // tenta a Lovable AI Gateway (cota separada).
-              if (!res.ok && (res.status >= 500 || res.status === 429)) {
-                logEvent({
-                  kind: "google-fallback-to-gateway",
-                  requestId,
-                  googleStatus: res.status,
-                });
-                if (abortSignal?.aborted) return aborted();
-                const gatewayRes = await callLovableGatewayImage({
-                  parts,
-                  requestId,
-                  parentSignal: abortSignal,
-                });
-                if (abortSignal?.aborted) return aborted();
-                // Se a gateway funcionou, usa ela; senão, mantém o erro original do Google.
-                if (gatewayRes.ok) res = gatewayRes;
-              }
-
-
-
-              if (!res.ok) {
-                const text = await res.text();
-                // Tenta extrair o erro estruturado do Google
-                let googleStatus: string | undefined;
-                let googleMessage: string | undefined;
-                let googleCode: string | number | undefined;
-                try {
-                  const parsedErr = JSON.parse(text) as {
-                    error?: { code?: number | string; message?: string; status?: string };
-                  };
-                  googleStatus = parsedErr.error?.status;
-                  googleMessage = parsedErr.error?.message;
-                  googleCode = parsedErr.error?.code;
-                } catch {
-                  /* corpo não é JSON */
-                }
-
-                let userMsg: string;
-                let category:
-                  | "quota"
-                  | "auth"
-                  | "permission"
-                  | "model_not_found"
-                  | "bad_request"
-                  | "upstream"
-                  | "unknown";
-                if (res.status === 429) {
-                  category = "quota";
-                  userMsg = `429 — Cota gratuita do Google atingida${googleMessage ? `: ${googleMessage}` : ""}. Tente novamente em algumas horas (reset à meia-noite Pacífico) ou amanhã.`;
-                } else if (res.status === 401) {
-                  category = "auth";
-                  userMsg = `401 — Chave do Google inválida ou expirada${googleMessage ? `: ${googleMessage}` : ""}. Gere uma nova em aistudio.google.com/apikey.`;
-                } else if (res.status === 403) {
-                  category = "permission";
-                  userMsg = `403 — Chave sem permissão para o modelo ${GOOGLE_IMAGE_MODEL}${googleMessage ? `: ${googleMessage}` : ""}. Verifique se a Generative Language API está habilitada no projeto.`;
-                } else if (res.status === 404) {
-                  category = "model_not_found";
-                  userMsg = `404 — Modelo ${GOOGLE_IMAGE_MODEL} não encontrado${googleMessage ? `: ${googleMessage}` : ""}. Pode ter sido renomeado ou removido.`;
-                } else if (res.status === 400) {
-                  category = "bad_request";
-                  if (googleMessage && /unable to process input image/i.test(googleMessage)) {
-                    userMsg = `400 — O Google rejeitou as imagens de referência mesmo após retry e fallback. Geralmente é transitório: tente novamente em alguns segundos.`;
-                  } else {
-                    userMsg = `400 — Requisição rejeitada pelo Google${googleMessage ? `: ${googleMessage}` : ""}.`;
-                  }
-                } else if (res.status >= 500) {
-                  category = "upstream";
-                  userMsg = `${res.status} — Serviço de imagem do Google instável agora${googleMessage ? ` (${googleMessage})` : ""}. Tente novamente em instantes.`;
-                } else {
-                  category = "unknown";
-                  userMsg = `Falha ao gerar imagem (HTTP ${res.status})${googleMessage ? `: ${googleMessage}` : ""}.`;
-                }
-                logEvent({
-                  kind: "gen-fail",
-                  requestId,
-                  status: res.status,
-                  googleStatus,
-                  googleCode,
-                  googleMessage: googleMessage?.slice(0, 300),
-                  body: text.slice(0, 300),
-                });
-                return {
-                  ok: false as const,
-                  category,
-                  error: userMsg,
-                  httpStatus: res.status,
-                  googleStatus,
-                  googleCode,
-                  requestId,
-                };
-              }
-
-              const data = (await res.json()) as {
-                candidates?: Array<{
-                  content?: {
-                    parts?: Array<{
-                      inlineData?: { mimeType?: string; data?: string };
-                      inline_data?: { mime_type?: string; data?: string };
-                      text?: string;
-                    }>;
-                  };
-                }>;
-              };
-
-              // Procura a primeira parte com inlineData (formato camelCase do Google)
-              let imageDataUrl: string | undefined;
-              const partsOut = data.candidates?.[0]?.content?.parts ?? [];
-              for (const p of partsOut) {
-                const inline = (p.inlineData ?? p.inline_data) as
-                  | { mimeType?: string; mime_type?: string; data?: string }
-                  | undefined;
-                const mt = inline?.mimeType ?? inline?.mime_type;
-                const dt = inline?.data;
-                if (mt && dt) {
-                  imageDataUrl = `data:${mt};base64,${dt}`;
-                  break;
-                }
-              }
-
-              if (!imageDataUrl) {
-                // Tenta capturar texto de explicação do modelo (ex: bloqueio de safety)
-                const textOut = partsOut.map((p) => p.text).filter(Boolean).join(" ").slice(0, 300);
-                logEvent({
-                  kind: "gen-fail",
-                  requestId,
-                  reason: "no-image-in-response",
-                  modelText: textOut,
-                });
-                return {
-                  ok: false as const,
-                  category: "safety" as const,
-                  error: `O modelo respondeu mas não devolveu imagem${textOut ? ` (motivo: ${textOut})` : ""}. Pode ser bloqueio de segurança — tente reformular.`,
-                  requestId,
-                };
-              }
-
-              logEvent({ kind: "gen-ok", requestId, imageBytes: imageDataUrl.length });
-
-              return {
-                ok: true as const,
-                imageDataUrl,
-                requestId,
-                resumo: {
-                  dia: input.dia,
-                  abertura: input.abertura,
-                  bolaDoDia: input.bolaDoDia,
-                },
-              };
-            } catch (err) {
-              const errMsg = err instanceof Error ? err.message : String(err);
-              const isAbort =
-                err instanceof Error &&
-                (err.name === "AbortError" || errMsg.includes("aborted"));
-              // Cancelamento pelo usuário (via stop()) chega como AbortError
-              // com o parentSignal já marcado como aborted.
-              if (isAbort && abortSignal?.aborted) {
-                logEvent({ kind: "gen-aborted", requestId });
-                return aborted();
-              }
-              logEvent({
-                kind: "gen-exception",
-                requestId,
-                errorName: err instanceof Error ? err.name : "unknown",
-                error: errMsg,
-              });
-              const userMsg = isAbort
-                ? `Timeout — geração demorou mais de ${Math.round(GOOGLE_TIMEOUT_MS / 1000)}s e foi cancelada. Tente de novo.`
-                : `Falha de rede ao chamar o Google (${errMsg.slice(0, 120)}). Verifique conexão / DNS.`;
+            if (!result.ok) {
               return {
                 ok: false as const,
-                category: isAbort ? ("timeout" as const) : ("network" as const),
-                error: userMsg,
-                requestId,
+                category: result.category,
+                error: result.error,
+                httpStatus: result.httpStatus,
+                googleStatus: result.googleStatus,
+                googleCode: result.googleCode,
+                requestId: result.requestId,
               };
             }
+
+            return {
+              ok: true as const,
+              imageUrl: result.imageUrl,
+              requestId: result.requestId,
+              resumo: {
+                dia: input.dia,
+                abertura: input.abertura,
+                bolaDoDia: input.bolaDoDia,
+              },
+            };
           },
           toModelOutput: ({ output }) => {
             const result = output as { ok?: boolean; error?: string; category?: string };
@@ -719,7 +309,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
                 ? "Arte do Novo Glorex gerada com sucesso. A imagem já foi entregue ao usuário na interface."
                 : result.category === "aborted"
                   ? "Geração cancelada pelo usuário."
-                  : `A FERRAMENTA FALHOU (categoria: ${result.category ?? "unknown"}) e NÃO gerou imagem alguma. NÃO diga genericamente "não consigo gerar a arte agora". Um card detalhado já foi mostrado ao usuário com a causa e o requestId. Apenas confirme em 1 frase curta a causa: "${result.error ?? "erro desconhecido"}".`,
+                  : `A FERRAMENTA FALHOU (categoria: ${result.category ?? "unknown"}) e NÃO gerou imagem alguma. Um card detalhado já foi mostrado ao usuário com a causa. Apenas confirme em 1 frase curta a causa: "${result.error ?? "erro desconhecido"}".`,
             };
           },
         });
@@ -745,7 +335,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
             logEvent({ kind: "stream-error", requestId, error: raw });
             const isRate = /429|too many requests|rate/i.test(raw);
             if (isRate) {
-              return `Limite de requisições do Google atingido no chat de texto (gemini-2.5-flash). Aguarde ~1 min e tente de novo. (id: ${requestId})`;
+              return `Limite de requisições do Google atingido no chat de texto. Aguarde ~1 min e tente de novo. (id: ${requestId})`;
             }
             return `${raw} (id: ${requestId})`;
           },

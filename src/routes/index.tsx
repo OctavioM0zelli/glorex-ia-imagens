@@ -43,33 +43,10 @@ export const Route = createFileRoute("/")({
 
 const STORAGE_KEY = "glorex-chat-messages";
 const ARTS_KEY = "glorex-generated-arts";
-// Memória de estilo: até 30 artes anteriores como referência base.
-// A I.A não envia todas — amostra algumas a cada geração para variar.
 const MAX_ARTS = 30;
-// Quantas artes mandar como referência por requisição (mantém payload leve).
 const ARTS_SAMPLE_PER_REQUEST = 3;
-const MAX_ART_REFERENCE_BYTES = 850_000;
 
-type StoredArt = { id: string; dataUrl: string; createdAt: number };
-
-function sanitizeMessagesForApi(messages: UIMessage[]): UIMessage[] {
-  return messages.map((message) => ({
-    ...message,
-    parts: message.parts.map((part) => {
-      if (part.type !== "tool-gerar_arte_glorex") return part;
-      const artePart = part as unknown as ArtePart;
-      if (!artePart.output?.imageDataUrl) return part;
-      return {
-        ...part,
-        output: {
-          ...artePart.output,
-          imageDataUrl: "",
-          imagemGerada: true,
-        },
-      };
-    }),
-  })) as UIMessage[];
-}
+type StoredArt = { id: string; imageUrl: string; createdAt: number };
 
 function loadInitial(): UIMessage[] {
   if (typeof window === "undefined") return [];
@@ -89,99 +66,36 @@ function loadArts(): StoredArt[] {
     const raw = window.localStorage.getItem(ARTS_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    // Compat: filtra entradas antigas (dataUrl) — mantém só URLs reais.
+    return parsed.filter(
+      (a): a is StoredArt =>
+        a && typeof a.imageUrl === "string" && /^https?:\/\//i.test(a.imageUrl),
+    );
   } catch {
     return [];
   }
 }
 
-// Comprime a arte (data URL) para JPEG leve antes de salvar/enviar.
-// Reduz drasticamente o uso de localStorage em celulares antigos.
-async function compressDataUrl(dataUrl: string, maxSize = 540, quality = 0.68): Promise<string> {
-  if (typeof window === "undefined") return dataUrl;
-  try {
-    const img = new Image();
-    img.decoding = "async";
-    img.src = dataUrl;
-    await img.decode();
-    const ratio = Math.min(1, maxSize / Math.max(img.width, img.height));
-    const w = Math.round(img.width * ratio);
-    const h = Math.round(img.height * ratio);
-    const canvas = document.createElement("canvas");
-    canvas.width = w;
-    canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return dataUrl;
-    ctx.drawImage(img, 0, 0, w, h);
-    return canvas.toDataURL("image/jpeg", quality);
-  } catch {
-    return dataUrl;
-  }
-}
-
-// Redimensiona a arte para EXATAMENTE 1080x1920 (object-fit: cover, centralizado).
-async function resizeDataUrlToExact(
-  dataUrl: string,
-  targetW = 1080,
-  targetH = 1920,
-): Promise<string> {
-  if (typeof window === "undefined") return dataUrl;
-  try {
-    const img = new Image();
-    img.decoding = "async";
-    img.src = dataUrl;
-    await img.decode();
-    const canvas = document.createElement("canvas");
-    canvas.width = targetW;
-    canvas.height = targetH;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return dataUrl;
-    // cover: escala para preencher o canvas, recortando o excesso
-    const scale = Math.max(targetW / img.width, targetH / img.height);
-    const drawW = img.width * scale;
-    const drawH = img.height * scale;
-    const dx = (targetW - drawW) / 2;
-    const dy = (targetH - drawH) / 2;
-    ctx.drawImage(img, dx, dy, drawW, drawH);
-    return canvas.toDataURL("image/png");
-  } catch {
-    return dataUrl;
-  }
-}
-
-async function saveArt(dataUrl: string) {
+function saveArt(imageUrl: string) {
   if (typeof window === "undefined") return;
   try {
     const existing = loadArts();
-    if (existing.some((a) => a.dataUrl === dataUrl)) return;
-    let compressed = await compressDataUrl(dataUrl);
-    if (compressed.length > MAX_ART_REFERENCE_BYTES) {
-      compressed = await compressDataUrl(dataUrl, 420, 0.58);
-    }
-    if (compressed.length > MAX_ART_REFERENCE_BYTES) return;
+    if (existing.some((a) => a.imageUrl === imageUrl)) return;
     const next = [
       ...existing,
-      { id: crypto.randomUUID(), dataUrl: compressed, createdAt: Date.now() },
+      { id: crypto.randomUUID(), imageUrl, createdAt: Date.now() },
     ].slice(-MAX_ARTS);
     window.localStorage.setItem(ARTS_KEY, JSON.stringify(next));
   } catch (err) {
-    // Quota exceeded ou modo privado: limpa e tenta uma vez sem histórico
     console.warn("Falha ao salvar arte:", err);
-    try {
-      window.localStorage.removeItem(ARTS_KEY);
-    } catch {
-      /* ignore */
-    }
   }
 }
 
-// Remove uma arte salva cujo dataUrl comece com o prefixo informado
-// (usamos prefixo porque a versão salva é comprimida e difere da exibida).
-function removeArtByPrefix(prefix: string) {
+function removeArtByUrl(imageUrl: string) {
   if (typeof window === "undefined") return;
   try {
-    const existing = loadArts();
-    const next = existing.filter((a) => !a.dataUrl.startsWith(prefix));
+    const next = loadArts().filter((a) => a.imageUrl !== imageUrl);
     window.localStorage.setItem(ARTS_KEY, JSON.stringify(next));
   } catch {
     /* ignore */
@@ -194,8 +108,6 @@ type BeforeInstallPromptEvent = Event & {
 };
 
 function Index() {
-  // Hidratação: começa vazio em SSR e no primeiro render do cliente,
-  // depois carrega do localStorage em useEffect para evitar mismatch.
   const [initial, setInitial] = useState<UIMessage[]>([]);
   const [hydrated, setHydrated] = useState(false);
   const [resetKey, setResetKey] = useState(0);
@@ -205,16 +117,14 @@ function Index() {
   const [installEvent, setInstallEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const processedArtSignatures = useRef<Set<string>>(new Set());
+  const processedArtUrls = useRef<Set<string>>(new Set());
 
-  // Carrega histórico e artes depois da hidratação
   useEffect(() => {
     setInitial(loadInitial());
     setArtsCount(loadArts().length);
     setHydrated(true);
   }, []);
 
-  // Online/offline + install prompt listeners
   useEffect(() => {
     if (typeof window === "undefined") return;
     setOnline(navigator.onLine);
@@ -246,21 +156,20 @@ function Index() {
       new DefaultChatTransport({
         api: "/api/chat",
         prepareSendMessagesRequest: ({ messages, body }) => {
-          // Estratégia de amostragem: sempre inclui a arte mais recente
-          // + N-1 sorteadas aleatoriamente das demais. Mantém variedade
-          // sem inflar o payload.
+          // Amostra de URLs de artes anteriores como memória de estilo.
           const all = loadArts();
           const recent = all.slice(-1);
           const pool = all.slice(0, -1);
           const shuffled = [...pool].sort(() => Math.random() - 0.5);
-          const sample = [...recent, ...shuffled.slice(0, Math.max(0, ARTS_SAMPLE_PER_REQUEST - 1))]
-            .map((a) => a.dataUrl)
-            .filter((dataUrl) => dataUrl.length <= MAX_ART_REFERENCE_BYTES);
+          const sample = [
+            ...recent,
+            ...shuffled.slice(0, Math.max(0, ARTS_SAMPLE_PER_REQUEST - 1)),
+          ].map((a) => a.imageUrl);
 
           return {
             body: {
               ...body,
-              messages: sanitizeMessagesForApi(messages),
+              messages,
               artesGeradas: sample,
             },
           };
@@ -275,10 +184,10 @@ function Index() {
     transport,
   });
 
-  // Persist messages + capture generated arts
+  // Persist messages + capture generated arts (imageUrl) into local memory.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (!hydrated) return; // não sobrescreve antes do load inicial
+    if (!hydrated) return;
     if (messages.length === 0) {
       try {
         window.localStorage.removeItem(STORAGE_KEY);
@@ -293,57 +202,23 @@ function Index() {
       console.warn("Falha ao salvar histórico:", err);
     }
 
-    // Resize newly generated arts to 1080x1920, save them, and update the message.
-    (async () => {
-      const tasks: Array<{ sig: string; url: string }> = [];
-      for (const m of messages) {
-        for (const part of m.parts) {
-          if (part.type !== "tool-gerar_arte_glorex") continue;
-          const p = part as unknown as ArtePart;
-          const url = p.output?.imageDataUrl;
-          if (p.state !== "output-available" || !p.output?.ok || !url) continue;
-          const sig = url.slice(0, 80);
-          if (processedArtSignatures.current.has(sig)) continue;
-          processedArtSignatures.current.add(sig);
-          tasks.push({ sig, url });
-        }
-      }
-      if (tasks.length === 0) return;
-      let added = false;
-      const resized = new Map<string, string>();
-      for (const t of tasks) {
-        const out = await resizeDataUrlToExact(t.url, 1080, 1920);
-        resized.set(t.sig, out);
-        // Marca a versão final como processada também (evita reprocessar
-        // depois que setMessages atualizar a mensagem)
-        processedArtSignatures.current.add(out.slice(0, 80));
+    let added = false;
+    for (const m of messages) {
+      for (const part of m.parts) {
+        if (part.type !== "tool-gerar_arte_glorex") continue;
+        const p = part as unknown as ArtePart;
+        const url = p.output?.imageUrl;
+        if (p.state !== "output-available" || !p.output?.ok || !url) continue;
+        if (processedArtUrls.current.has(url)) continue;
+        processedArtUrls.current.add(url);
         const before = loadArts().length;
-        await saveArt(out);
-        const after = loadArts().length;
-        if (after > before) added = true;
+        saveArt(url);
+        if (loadArts().length > before) added = true;
       }
-      setMessages((prev) =>
-        prev.map((m) => ({
-          ...m,
-          parts: m.parts.map((part) => {
-            if (part.type !== "tool-gerar_arte_glorex") return part;
-            const p = part as unknown as ArtePart;
-            const url = p.output?.imageDataUrl;
-            if (!url) return part;
-            const newUrl = resized.get(url.slice(0, 80));
-            if (!newUrl || newUrl === url) return part;
-            return {
-              ...part,
-              output: { ...p.output!, imageDataUrl: newUrl },
-            } as typeof part;
-          }),
-        })),
-      );
-      if (added) setArtsCount(loadArts().length);
-    })();
-  }, [messages, hydrated, setMessages]);
+    }
+    if (added) setArtsCount(loadArts().length);
+  }, [messages, hydrated]);
 
-  // Auto-scroll
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
@@ -351,13 +226,11 @@ function Index() {
     });
   }, [messages, status]);
 
-  // Keep textarea focused
   useEffect(() => {
     if (status === "ready") inputRef.current?.focus();
   }, [status]);
 
   const isLoading = status === "submitted" || status === "streaming";
-  // Existe uma chamada da tool de gerar arte ainda sem output final?
   const hasArtInFlight = useMemo(
     () =>
       messages.some((m) =>
@@ -372,7 +245,6 @@ function Index() {
   const isBusy = isLoading || hasArtInFlight;
   const visibleMessages = hydrated ? messages : [];
 
-  // Cooldown após 429 (cota / rate limit) para não desperdiçar novas tentativas.
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -419,8 +291,6 @@ function Index() {
     } catch {
       /* ignore */
     }
-    // Marca qualquer tool-call ainda pendente como cancelada, pra UI
-    // refletir na hora mesmo se o servidor demorar um tick.
     setMessages((prev) =>
       prev.map((m) => ({
         ...m,
@@ -462,7 +332,7 @@ function Index() {
     setInitial([]);
     setInput("");
     setCooldownUntil(0);
-    processedArtSignatures.current.clear();
+    processedArtUrls.current.clear();
     if (typeof window !== "undefined") {
       try {
         window.localStorage.removeItem(STORAGE_KEY);
@@ -474,7 +344,6 @@ function Index() {
     setArtsCount(0);
     setResetKey((k) => k + 1);
   };
-
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
@@ -512,7 +381,7 @@ function Index() {
             {artsCount > 0 && (
               <span
                 className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted-foreground"
-                title="Artes que a I.A GX usa como memória de estilo (não pode ser apagada)"
+                title="Artes que a I.A GX usa como memória de estilo"
               >
                 <Sparkles className="h-4 w-4 text-primary" />
                 Memória ({artsCount})
@@ -523,7 +392,7 @@ function Index() {
               size="sm"
               onClick={handleNewChat}
               className="text-muted-foreground hover:text-foreground"
-              title="Limpa a conversa atual sem apagar a memória de estilo da I.A"
+              title="Apaga conversa, imagens e interrompe gerações em andamento"
             >
               <Trash2 className="mr-1.5 h-4 w-4" />
               Nova conversa
@@ -563,7 +432,6 @@ function Index() {
               canRegenerate={!isLoading && online && !inCooldown}
               onRegenerate={() => {
                 if (inCooldown) return;
-                // Acha a última mensagem do user antes desta mensagem com arte
                 let briefing = "";
                 for (let i = idx - 1; i >= 0; i--) {
                   const prev = visibleMessages[i];
@@ -582,8 +450,8 @@ function Index() {
                   : "Gere novamente a última arte, com uma NOVA variação de paleta de fundo e layout (diferente da anterior).";
                 sendMessage({ text: prompt });
               }}
-              onDeleteArt={(dataUrl) => {
-                removeArtByPrefix(dataUrl.slice(0, 80));
+              onDeleteArt={(imageUrl) => {
+                removeArtByUrl(imageUrl);
                 setArtsCount(loadArts().length);
                 setMessages((prev) =>
                   prev
@@ -594,7 +462,7 @@ function Index() {
                             parts: msg.parts.filter((p) => {
                               if (p.type !== "tool-gerar_arte_glorex") return true;
                               const pp = p as unknown as ArtePart;
-                              return pp.output?.imageDataUrl !== dataUrl;
+                              return pp.output?.imageUrl !== imageUrl;
                             }),
                           }
                         : msg,
@@ -712,7 +580,7 @@ function MessageBubble({
   canRegenerate,
 }: {
   message: UIMessage;
-  onDeleteArt?: (dataUrl: string) => void;
+  onDeleteArt?: (imageUrl: string) => void;
   onRegenerate?: () => void;
   canRegenerate?: boolean;
 }) {
@@ -758,7 +626,7 @@ type ArtePart = {
   input?: unknown;
   output?: {
     ok: boolean;
-    imageDataUrl?: string;
+    imageUrl?: string;
     error?: string;
     category?: string;
     httpStatus?: number;
@@ -780,7 +648,9 @@ const CATEGORY_META: Record<string, { label: string; icon: LucideIcon }> = {
   safety: { label: "Bloqueio de segurança", icon: ShieldAlert },
   timeout: { label: "Tempo esgotado", icon: TimerOff },
   network: { label: "Falha de rede", icon: WifiOff },
+  storage: { label: "Falha ao salvar imagem", icon: ServerCrash },
   aborted: { label: "Geração cancelada", icon: Square },
+  validation: { label: "Requisição inválida", icon: AlertTriangle },
   unknown: { label: "Erro desconhecido", icon: AlertTriangle },
 };
 
@@ -827,7 +697,7 @@ function ArteToolPart({
   canRegenerate,
 }: {
   part: ArtePart;
-  onDelete?: (dataUrl: string) => void;
+  onDelete?: (imageUrl: string) => void;
   onRegenerate?: () => void;
   canRegenerate?: boolean;
 }) {
@@ -849,8 +719,8 @@ function ArteToolPart({
     );
   }
 
-  if (part.output?.ok && part.output.imageDataUrl) {
-    const url = part.output.imageDataUrl;
+  if (part.output?.ok && part.output.imageUrl) {
+    const url = part.output.imageUrl;
     return (
       <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
         <img
@@ -895,6 +765,8 @@ function ArteToolPart({
             <a
               href={url}
               download={`glorex-${Date.now()}.png`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90"
             >
               <Download className="h-4 w-4" />
