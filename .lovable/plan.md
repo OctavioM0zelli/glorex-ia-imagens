@@ -1,102 +1,89 @@
-# Pipeline de 3 etapas para geração de artes Glorex
+# Tornar a programação do Glorex flexível (horário sem valor é válido)
+
+## Problema atual
+O schema `GlorexBriefingSchema.rodadas[]` exige `premio` obrigatório. Resultado: a IA do chat trata todo horário como rodada de bingo e força um valor em R$ — mesmo quando o funcionário manda "20:30 o 2° sorteio" ou "21:30 caixa de picanha". O builder do prompt também renderiza as linhas como "horário — prêmio", reforçando o erro.
 
 ## Objetivo
+Aceitar qualquer conteúdo após o horário (sorteio, item físico, balão premiado, rodada de bingo, série, descrição livre) e renderizar fielmente na arte, com destaque visual adequado ao tipo.
 
-Implementar o fluxo estruturado descrito pelo usuário:
+## Mudanças
 
-```
-Texto cru do funcionário
-  → Etapa 1: IA organizadora extrai JSON estruturado
-  → Etapa 2: Sistema monta prompt final (determinístico)
-  → Etapa 3: Nano Banana recebe prompt + referências e gera a imagem
-```
-
-Hoje o sistema já faz Etapa 3 e parcialmente a 2, mas o briefing chega como argumentos soltos da tool, sem a etapa explícita de "parser estruturado". O resultado é que campos importantes (oferta do topo, premio_extra separado da regra, condição extra, chamada final dupla) somem ou viram texto livre.
-
-## Mudanças propostas
-
-### 1. Novo schema estruturado (Etapa 1)
-
-Em `src/lib/glorex-briefing.ts` (novo, client-safe) definir o Zod schema oficial do briefing — base única usada pela tool do chat E pela rota `/api/generate-image`:
+### 1. `src/lib/glorex-briefing.ts` — novo schema
+Substituir `GlorexRodadaSchema` / `rodadas` por `GlorexEventoSchema` / `programacao`:
 
 ```ts
-GlorexBriefingSchema = z.object({
-  dia_da_semana_evento: z.string(),         // "Quarta"
-  oferta_topo: z.string().optional(),        // "50% em todo o cardápio..."
-  horario_abertura: z.string(),              // "18:30"
-  rodadas: z.array(z.object({
-    horario: z.string(),                     // "19:00"
-    premio: z.string(),                      // "R$ 400"
-    observacao: z.string().optional(),       // "Série 4"
-  })).min(1),
-  dia_numero: z.string(),                    // "20" (bola do dia)
-  regra_especial: z.string().optional(),
-  premio_extra: z.string().optional(),       // "R$ 2.300"
-  condicao_extra: z.string().optional(),
-  chamada_final: z.string().default("NÃO PERCAM!!! BOA SORTE!!!"),
-})
+GlorexEventoSchema = z.object({
+  horario: z.string().min(1),
+  tipo: z.enum(["rodada_bingo", "sorteio", "premiacao_item", "evento"]).default("evento"),
+  conteudo: z.string().min(1),          // descrição livre, sempre presente
+  valor: z.string().optional(),          // só quando há dinheiro envolvido (R$ XXX)
+  observacao: z.string().optional(),     // série, condição, detalhe
+});
+
+GlorexBriefingSchema = {
+  dia_da_semana_evento, oferta_topo?, horario_abertura,
+  programacao: z.array(GlorexEventoSchema).min(1).max(12),
+  dia_numero, regra_especial?, premio_extra?, condicao_extra?,
+  observacao_progressiva?,
+  chamada_final (default),
+}
 ```
 
-### 2. Tool do chat passa a usar o schema estruturado
+Quebra de compatibilidade aceita (não há persistência de tool-calls).
 
-Em `src/routes/api/chat.ts`:
-- Substituir o `inputSchema` atual da tool `gerar_arte_glorex` pelo `GlorexBriefingSchema`.
-- Atualizar o `SYSTEM_PROMPT` para instruir a IA a:
-  1. Conversar com o usuário e coletar dados.
-  2. Auto-corrigir typos/moeda/horários.
-  3. Chamar a tool **passando o JSON estruturado completo** (não mais campos colados como `descricao: "500 — 4 reais"`).
-- Manter `normalizeBriefingInput` como rede de segurança server-side.
+### 2. `buildGlorexImagePrompt` — render adaptativo do bloco 3
+Cada linha mostra apenas o conteúdo real, **sem rótulos de coluna** ("observação", "conteúdo", "tipo" não aparecem na arte). Formato:
 
-### 3. Builder determinístico do prompt final (Etapa 2)
-
-Em `src/lib/image-generation.server.ts`, extrair uma função pura:
-
-```ts
-buildGlorexImagePrompt(briefing: GlorexBriefing, paleta: string): string
+```text
+   {horario}  ⏰  {valor?}  {conteudo}  {observacao?}
 ```
 
-Que monta o prompt seguindo exatamente a estrutura do exemplo do usuário:
-- Bloco superior: logo pequena + título do dia + **oferta_topo em box destacado** (hoje some).
-- Bloco horários: começa com "ABERTURA hh:mm", depois rodadas em linhas com `horario — premio — observacao`.
-- Bloco central: "DIA {dia_numero}" + bola gigante com o mesmo número.
-- Bloco regra especial: `regra_especial` + `premio_extra` em 3D dourado + `condicao_extra` em destaque secundário.
-- Bloco final: `chamada_final` (suporta múltiplas linhas tipo "NÃO PERCAM!!! / BOA SORTE!!!").
+Regras visuais por `tipo` (descritas em texto natural no prompt do Gemini):
+- `rodada_bingo`: `valor` em dourado 3D grande; `conteudo` e `observacao` em branco como complemento.
+- `sorteio`: palavra "SORTEIO" em destaque na própria linha; `conteudo` em branco grande; `valor` em dourado se houver.
+- `premiacao_item`: ícone/ilustração do item; `conteudo` em branco grande; sem exigir valor.
+- `evento`: linha sóbria em branco, sem dourado.
 
-Tanto `/api/chat` quanto `/api/generate-image` chamam este builder — fonte única de verdade do layout.
+Atualizar "REGRAS CRÍTICAS" do prompt: horários sem valor em dinheiro são válidos e devem aparecer fielmente, sem inventar prêmios. Renomear "BLOCO DE HORÁRIOS" → "BLOCO DE PROGRAMAÇÃO".
 
-### 4. Rota `/api/generate-image` ganha modo estruturado
+### 3. `normalizeGlorexBriefing` em `image-generation.server.ts`
+- Trocar `b.rodadas.map(...)` por `b.programacao.map(...)`.
+- Normalizar `horario`, `conteudo`, `valor?`, `observacao?`.
+- Não preencher `valor` se vier vazio.
+- Normalizar novo campo `observacao_progressiva`.
 
-Hoje aceita só `{ prompt: string }`. Estender o schema:
+### 4. `src/routes/api/chat.ts` — system prompt + tool
+Atualizar `SYSTEM_PROMPT`:
+- Trocar bloco "MAPEAMENTO DOS CAMPOS" para o novo schema.
+- **Regra de ouro**: "Após encontrar um horário, capture TODO o texto até o próximo horário como `conteudo` daquele evento."
+- Regras de classificação do `tipo`:
+  - tem R$ + parece bingo → `rodada_bingo` (separar valor em `valor`)
+  - contém "sorteio" → `sorteio`
+  - item físico (picanha, cesta, brinde, balão, airfryer, frigobar, kit churrasco) → `premiacao_item`
+  - resto → `evento`
+- Proibições explícitas: nunca exigir valor, nunca inventar prêmio, nunca descartar horário sem dinheiro, nunca transformar sorteio em rodada com valor.
+- Campos obrigatórios reduzidos: `dia_da_semana_evento`, `horario_abertura`, `programacao` (≥1), `dia_numero`.
+- 3-4 exemplos inline (dos enviados pelo usuário).
 
-```ts
-{ prompt: string }                           // modo livre (mantido)
-| { briefing: GlorexBriefingSchema }         // modo estruturado (novo)
-```
+Ajustar `resumo` retornado pela tool: `eventos: briefing.programacao.length`.
 
-No modo estruturado: aplica `normalizeBriefingInput` no briefing → chama `buildGlorexImagePrompt` → gera. Permite testar/disparar a Etapa 3 sem passar pelo chat.
+### 5. `src/routes/api/generate-image.ts`
+Sem mudança estrutural — herda automaticamente o novo schema via `z.union`.
 
-### 5. Normalizador estendido
-
-`normalizeBriefingInput` em `image-generation.server.ts` passa a operar sobre o novo schema:
-- Currency em `rodadas[].premio` e `premio_extra`.
-- Horários em `horario_abertura` e `rodadas[].horario`.
-- Trim/capitalização em `dia_da_semana_evento`, `oferta_topo`, `regra_especial`, `condicao_extra`, `chamada_final`.
+### 6. Memória do projeto
+Atualizar `mem://design/estrutura-fixa.md`:
+- Bloco 3 agora é "Programação" (não "Horários/Rodadas").
+- Horário pode ter apenas descrição, sem valor.
+- Tipos válidos: rodada_bingo, sorteio, premiacao_item, evento.
+- Rótulos de coluna (observação/conteúdo/tipo) NUNCA aparecem renderizados na arte.
 
 ## Fora de escopo
+- Frontend / UI.
+- Storage, RLS, auth, bucket de referências.
+- Modelo de imagem, paletas.
 
-- Mudanças visuais no frontend / componente de chat.
-- Mudanças em RLS, bucket, autenticação.
-- Mudanças no fluxo de referências do bucket (continua usando últimas N do bucket inteiro).
-- Mudança de modelo de imagem (continua `GOOGLE_IMAGE_MODEL`).
-
-## Arquivos afetados
-
-- **novo**: `src/lib/glorex-briefing.ts` (schema + tipo compartilhado)
-- **edit**: `src/lib/image-generation.server.ts` (builder de prompt + normalizador novo)
-- **edit**: `src/routes/api/chat.ts` (tool com schema estruturado + system prompt)
-- **edit**: `src/routes/api/generate-image.ts` (aceita briefing estruturado)
-- **edit**: `mem://design/estrutura-fixa.md` (refletir os 6 blocos com nomes dos campos do schema)
-
-## Risco
-
-Quebra de compatibilidade interna: mensagens antigas do chat que tenham chamado a tool com o schema antigo (`jogadas[].descricao`, `bolaDoDia`, `slogan`) não conseguirão re-executar a tool. Mitigação: aceitar ambos os formatos por 1 release via `z.union`, ou simplesmente assumir que ninguém replay antigas (mais simples — recomendo este).
+## Arquivos
+- editar `src/lib/glorex-briefing.ts`
+- editar `src/lib/image-generation.server.ts`
+- editar `src/routes/api/chat.ts`
+- editar `mem://design/estrutura-fixa.md`
