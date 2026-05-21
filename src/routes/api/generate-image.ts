@@ -47,7 +47,8 @@ export const Route = createFileRoute("/api/generate-image")({
         }
 
         const origin = new URL(request.url).origin;
-        const parts: GoogleImagePart[] = [{ text: body.prompt }];
+        const normalizedPrompt = normalizeBriefingString(body.prompt);
+        const parts: GoogleImagePart[] = [{ text: normalizedPrompt }];
 
         if (body.includeBrandReferences) {
           try {
