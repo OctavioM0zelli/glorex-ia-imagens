@@ -141,11 +141,14 @@ function normalizeCurrencyInText(s: string): string {
   // e que NÃO estão já precedidos por R$ ou colados num horário (19:00).
   out = out.replace(
     /(^|[^\d:\wR$])(\d{1,3}(?:[.\s]\d{3})+|\d{3,})(?!\s*[:hH]\d)/g,
-    (_m, pre: string, num: string) => {
+    (_m, pre: string, num: string, offset: number, full: string) => {
       const clean = num.replace(/[.\s]/g, "");
       const n = Number(clean);
       if (!Number.isFinite(n) || n < 100) return `${pre}${num}`;
       const formatted = n.toLocaleString("pt-BR");
+      // Não adicionar "R$" se já houver "R$" imediatamente antes (evita "R$ R$ 2.300").
+      const before = full.slice(0, offset) + pre;
+      if (/R\$\s*$/i.test(before)) return `${pre}${formatted}`;
       return `${pre}R$ ${formatted}`;
     },
   );
