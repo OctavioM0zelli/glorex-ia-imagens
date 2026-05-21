@@ -176,31 +176,29 @@ export function normalizeBriefingString(s: string | undefined | null): string {
   return out;
 }
 
-export type BriefingInput = {
-  dia: string;
-  abertura: string;
-  jogadas: Array<{ horario: string; descricao: string }>;
-  bolaDoDia: string;
-  premioBingo?: string;
-  slogan?: string;
-  observacoes?: string;
-};
+// Normalizador do schema estruturado novo (GlorexBriefing).
+import type { GlorexBriefing } from "./glorex-briefing";
 
-export function normalizeBriefingInput<T extends BriefingInput>(input: T): T {
+export function normalizeGlorexBriefing(b: GlorexBriefing): GlorexBriefing {
   return {
-    ...input,
-    dia: normalizeBriefingString(input.dia),
-    abertura: normalizeBriefingString(input.abertura),
-    jogadas: input.jogadas.map((j) => ({
-      horario: normalizeBriefingString(j.horario),
-      descricao: normalizeBriefingString(j.descricao),
+    ...b,
+    dia_da_semana_evento: normalizeBriefingString(b.dia_da_semana_evento),
+    oferta_topo: b.oferta_topo ? normalizeBriefingString(b.oferta_topo) : b.oferta_topo,
+    horario_abertura: normalizeBriefingString(b.horario_abertura),
+    rodadas: b.rodadas.map((r) => ({
+      horario: normalizeBriefingString(r.horario),
+      premio: normalizeBriefingString(r.premio),
+      observacao: r.observacao ? normalizeBriefingString(r.observacao) : r.observacao,
     })),
-    bolaDoDia: normalizeBriefingString(input.bolaDoDia),
-    premioBingo: input.premioBingo ? normalizeBriefingString(input.premioBingo) : input.premioBingo,
-    slogan: input.slogan ? normalizeBriefingString(input.slogan) : input.slogan,
-    observacoes: input.observacoes
-      ? normalizeBriefingString(input.observacoes)
-      : input.observacoes,
+    dia_numero: normalizeBriefingString(b.dia_numero),
+    regra_especial: b.regra_especial
+      ? normalizeBriefingString(b.regra_especial)
+      : b.regra_especial,
+    premio_extra: b.premio_extra ? normalizeBriefingString(b.premio_extra) : b.premio_extra,
+    condicao_extra: b.condicao_extra
+      ? normalizeBriefingString(b.condicao_extra)
+      : b.condicao_extra,
+    chamada_final: normalizeBriefingString(b.chamada_final),
   };
 }
 

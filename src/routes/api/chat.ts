@@ -6,29 +6,50 @@ import { z } from "zod";
 
 import { getGlorexReferences } from "@/lib/glorex-references.server";
 import {
+  buildGlorexImagePrompt,
+  GlorexBriefingSchema,
+  pickRandomPaleta,
+} from "@/lib/glorex-briefing";
+import {
   dataUrlToInline,
   fetchBucketArtsAsInline,
   fetchUrlAsInline,
   generateAndStoreImage,
-  normalizeBriefingInput,
+  normalizeGlorexBriefing,
   type GoogleImagePart,
 } from "@/lib/image-generation.server";
 
-const SYSTEM_PROMPT = `Você é a I.A GX, assistente do Novo Glorex Presencial especializada em criar artes promocionais para bingos e sorteios.
+const SYSTEM_PROMPT = `Você é a I.A GX, assistente do Novo Glorex Presencial. Seu trabalho é transformar o texto cru enviado pelo funcionário em um BRIEFING ESTRUTURADO e disparar a geração da arte.
 
-Seu trabalho:
-- Conversar em português brasileiro, de forma direta, simpática e objetiva.
-- Coletar com o usuário os dados da arte: dia da semana e data, horário de abertura, jogadas (horário + valor de cada série), bola do dia, prêmios extras (kit churrasco, airfryer, frigobar, picanha etc.) e o slogan final.
-- ANTES de chamar a tool, AUTO-CORRIJA o briefing do usuário:
-  • corrija pequenos typos, espaçamento e pontuação;
-  • padronize moeda no formato brasileiro: "400" → "R$ 400", "1000" → "R$ 1.000", "2300" → "R$ 2.300";
-  • reorganize itens claramente relacionados (ex.: horário e prêmio na mesma jogada);
-  • NÃO invente horários, valores ou regras que o usuário não forneceu;
-  • mantenha 100% do sentido original.
-- Quando tiver dados suficientes, faça um resumo curto e CHAME a tool "gerar_arte_glorex" passando todas as informações estruturadas e já normalizadas.
-- Após a tool retornar, comente brevemente que a arte foi gerada e ofereça ajustes (mudar paleta, refazer com outra bola do dia, adicionar mais jogadas etc.).
-- Toda arte é um flyer vertical 9:16 e SEMPRE inclui a logo "NOVO GLOREX PRESENCIAL" como SELO PEQUENO no canto superior esquerdo (~15-18% da largura — nunca grande, nunca centralizada).
-- Cada arte gerada deve ser ÚNICA, variando paleta de fundo, disposição dos blocos e elementos decorativos. Nunca repetir uma arte anterior.
+PIPELINE DE 3 ETAPAS:
+1. ENTENDA o texto cru do funcionário (pode vir desorganizado, com typos e abreviações).
+2. EXTRAIA os campos estruturados (auto-corrigindo typos, moeda e horários — sem inventar dados).
+3. CHAME a tool "gerar_arte_glorex" passando TODOS os campos do schema preenchidos. O sistema monta o prompt final automaticamente.
+
+AUTO-CORREÇÕES OBRIGATÓRIAS antes de chamar a tool:
+- Moeda no formato brasileiro: "400" → "R$ 400", "1000" → "R$ 1.000", "2300" → "R$ 2.300".
+- Horários no formato 24h com dois pontos: "19h" → "19:00", "19h30" → "19:30", "18:30" mantém.
+- Pequenos typos, pontuação, espaçamento, capitalização.
+- NÃO invente horários, valores, prêmios ou regras que o usuário não forneceu.
+- Mantenha 100% do sentido original.
+
+MAPEAMENTO DOS CAMPOS:
+- dia_da_semana_evento: "Quarta", "Sexta — dia 15", etc.
+- oferta_topo: oferta destacada do topo (ex.: "50% em todo o cardápio para consumo local."). Omita se não houver.
+- horario_abertura: ex.: "18:30".
+- rodadas[]: cada rodada vira { horario, premio, observacao? }. Ex.: "19:00 400 série 4" → { horario: "19:00", premio: "R$ 400", observacao: "Série 4" }.
+- dia_numero: número da bola do dia / "DIA XX" central, ex.: "20".
+- regra_especial: texto completo da regra ligada à bola do dia, com prêmio extra integrado.
+- premio_extra: SÓ o valor do prêmio extra em destaque, ex.: "R$ 2.300".
+- condicao_extra: condição complementar, ex.: "Para quem bater o bingo com a série completa.".
+- chamada_final: chamada final, ex.: "NÃO PERCAM!!! BOA SORTE!!!". Use o default se o usuário não mandar.
+
+FLUXO DA CONVERSA:
+- Se faltar algum campo OBRIGATÓRIO (dia_da_semana_evento, horario_abertura, rodadas, dia_numero), peça ao usuário em UMA mensagem curta.
+- Quando tiver dados suficientes, faça um resumo curto (1-3 linhas) e JÁ chame a tool.
+- Após a tool retornar, comente em 1 frase que a arte foi gerada e ofereça ajustes.
+- Toda arte é flyer vertical 9:16, logo "NOVO GLOREX PRESENCIAL" SEMPRE pequena no canto superior esquerdo.
+- Cada arte deve ser ÚNICA — paleta diferente das anteriores.
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
 const MAX_ARTES_GERADAS = 5;
@@ -36,7 +57,6 @@ const GOOGLE_TEXT_MODEL = "gemini-2.5-flash";
 
 const RequestSchema = z.object({
   messages: z.array(z.any()).min(1).max(500),
-  // Agora recebemos URLs públicas de artes anteriores (não mais data URLs).
   artesGeradas: z.array(z.string().url()).max(MAX_ARTES_GERADAS).optional().default([]),
 });
 
@@ -94,33 +114,8 @@ export const Route = createFileRoute("/api/chat")({
 
         const gerarArte = tool({
           description:
-            "Gera a arte promocional do Novo Glorex Presencial usando Nano Banana, com fundo branco, detalhes laranja-amarelados e a logo Novo Glorex. Use quando o usuário tiver fornecido dados suficientes.",
-          inputSchema: z.object({
-            dia: z.string().describe("Dia da semana e/ou data, ex: 'Sexta — dia 15'."),
-            abertura: z.string().describe("Horário de abertura, ex: '18:30'."),
-            jogadas: z
-              .array(
-                z.object({
-                  horario: z.string().describe("Horário, ex: '19:00'."),
-                  descricao: z
-                    .string()
-                    .describe(
-                      "Descrição da jogada, ex: 'Série de 500 — 4 reais' ou 'Kit churrasco + airfryer'.",
-                    ),
-                }),
-              )
-              .min(1),
-            bolaDoDia: z.string().describe("Número e/ou descrição da bola do dia."),
-            premioBingo: z
-              .string()
-              .optional()
-              .describe("Prêmio extra para quem bater bingo na bola do dia."),
-            slogan: z.string().default("NÃO PERCAM, BOA SORTE!!!").describe("Slogan final."),
-            observacoes: z
-              .string()
-              .optional()
-              .describe("Detalhes visuais extras pedidos pelo usuário."),
-          }),
+            "Gera a arte promocional do Novo Glorex Presencial recebendo o briefing JÁ ESTRUTURADO (Etapa 2 do pipeline). Sempre passe TODOS os campos preenchidos com valores normalizados (R$, horários hh:mm).",
+          inputSchema: GlorexBriefingSchema,
           execute: async (input, options) => {
             const abortSignal = options?.abortSignal;
             const aborted = () =>
@@ -152,88 +147,11 @@ export const Route = createFileRoute("/api/chat")({
               };
             }
 
-            // Normaliza moeda (R$), horários e espaçamento antes de montar o prompt.
-            const b = normalizeBriefingInput(input);
+            // Etapa 2 (final): rede de segurança server-side + builder determinístico.
+            const briefing = normalizeGlorexBriefing(input);
+            const paleta = pickRandomPaleta();
+            const promptText = buildGlorexImagePrompt(briefing, paleta);
 
-            const paleta = (() => {
-              const paletas = [
-                "VERMELHO + PRETO — vermelho saturado neon e preto profundo, com acentos dourados",
-                "ROXO + ROSA — roxo elétrico e rosa neon vibrante, com glow magenta",
-                "AZUL + ROXO — azul royal e roxo profundo, com glow ciano/violeta e brilhos dourados",
-                "VERDE NEON + PRETO — preto profundo com explosões em verde neon luxuoso e detalhes dourados",
-                "DOURADO + VERMELHO — dourado metálico brilhante sobre vermelho intenso, clima de premiação luxuosa",
-                "LARANJA + AMARELO — laranja saturado e amarelo neon, com contornos pretos fortes",
-                "AZUL NEON + PRETO — preto profundo com azul neon elétrico, glow ciano e detalhes dourados",
-              ];
-              return paletas[Math.floor(Math.random() * paletas.length)];
-            })();
-
-            const promptText = `Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo flyer brasileiro popular-premium de BINGO / SORTEIO / CASSINO: vibrante, brilhante, organizada, ALTAMENTE LEGÍVEL. Pensada para Instagram Stories e WhatsApp Status.
-
-==============================
-IDENTIDADE VISUAL — LOGO
-==============================
-LOGO "NOVO GLOREX PRESENCIAL" SEMPRE no CANTO SUPERIOR ESQUERDO, em tamanho PEQUENO/COMPACTO (~15-18% da largura), nítida e bem visível, mas NUNCA grande, NUNCA centralizada, NUNCA dominando a composição. Use a PRIMEIRA imagem de referência como base do logo.
-
-==============================
-PALETA DESTA GERAÇÃO
-==============================
-${paleta}. Cores SATURADAS, NEON, LUXUOSAS. Fundo ESCURO, vibrante e contrastante, com brilhos, bordas iluminadas, clima festivo/premiação.
-
-REGRA DE COR PREDOMINANTE:
-- Escolha UMA cor predominante (da paleta acima) e use ela na MAIORIA dos elementos: fundo principal, faixas, blocos de horários/prêmios, molduras, glow e decoração.
-- A arte inteira deve "respirar" essa cor. Dourado/prata aparecem só em destaques.
-- Use paleta DIFERENTE das últimas artes enviadas como referência.
-
-==============================
-REGRA DE TEXTO E DESTAQUE
-==============================
-- COR PADRÃO DO TEXTO = BRANCO PURO, com contorno escuro e sombra para contraste sobre o fundo escuro.
-- AMARELO/DOURADO apenas para destaques: valores de prêmio (R$), horários importantes, número da bola do dia e chamada final.
-- Tipografia GRANDE, LIMPA, IMPACTANTE, em NEGRITO, com aparência 3D nos prêmios.
-- Texto NUNCA pode ficar confuso, cortado, sobreposto ou mal distribuído. Priorize CLAREZA acima de excesso de efeitos.
-- TUDO em PORTUGUÊS BRASILEIRO.
-
-==============================
-ESTRUTURA FIXA EM 6 BLOCOS (siga nesta ordem visual)
-==============================
-
-1) BLOCO SUPERIOR ESQUERDO — selo/logo "NOVO GLOREX PRESENCIAL" pequeno no canto.
-
-2) BLOCO SUPERIOR PRINCIPAL — título do dia/evento "${b.dia}" com GRANDE destaque, dominando o topo (centro/direita). Se houver promoção de cardápio ou oferta extra, mostre em box destacado próximo ao topo.
-
-3) BLOCO DE HORÁRIOS — começa com "ABERTURA ${b.abertura}" em destaque. Depois, lista as rodadas em LINHAS HORIZONTAIS, uma por linha, com ícone de RELÓGIO ao lado do horário. Horários SEMPRE alinhados na lateral ESQUERDA. Cada linha: horário + prêmio + informação adicional se existir. Prêmios em tipografia 3D destacada (extrusão, contorno grosso, sombra, glow). Rodadas:
-${b.jogadas.map((j) => `   ${j.horario} — ${j.descricao}`).join("\n")}
-
-4) BLOCO CENTRAL DE DESTAQUE — texto "DIA ${b.bolaDoDia}" em GRANDE destaque (número em dourado/amarelo), com uma BOLA DE BINGO GIGANTE central mostrando o número "${b.bolaDoDia}". Ao redor, bolas decorativas menores numeradas.
-
-5) BLOCO DE REGRA ESPECIAL — ${b.premioBingo ? `texto explicando a condição da bola do dia: "NAS JOGADAS ANUNCIADAS, QUEM BATER O BINGO COM A BOLA ${b.bolaDoDia} LEVA ${b.premioBingo}". Destaque FORTE no valor do prêmio extra (dourado, 3D). Se houver condição (ex.: "série completa"), mostre com destaque secundário bem claro.` : `omita este bloco se não houver regra especial.`}
-
-6) BLOCO FINAL/CHAMADA — frase final chamativa "${b.slogan ?? "NÃO PERCAM, BOA SORTE!!!"}" fechando a arte com bastante impacto visual (tipografia gigante, dourado/amarelo + branco).
-${b.observacoes ? `\nObservações extras: ${b.observacoes}` : ""}
-
-==============================
-ELEMENTOS DECORATIVOS
-==============================
-Bolas de bingo numeradas, cédulas de dinheiro brasileiro (R$), brilhos, estrelas, confetes, molduras iluminadas, faíscas, partículas luminosas. Visual forte e comercial, mas SEM ficar bagunçado.
-
-==============================
-PREMIAÇÕES FÍSICAS (quando citadas)
-==============================
-Ilustre item físico (airfryer, frigobar, kit churrasco, picanha, cervejas, carnes) de forma REALISTA e PREMIUM, bem iluminado e apetitoso. NUNCA usar marcas reais.
-
-==============================
-REGRAS CRÍTICAS
-==============================
-- NÃO inventar horários, valores ou regras.
-- Manter TODOS os horários, números e valores EXATAMENTE como enviados.
-- NÃO cortar, cobrir ou sobrepor textos — especialmente os HORÁRIOS na coluna esquerda.
-- Cada arte ÚNICA — varie disposição e decoração em relação às artes anteriores; use cor predominante DIFERENTE da última.
-- Priorize CLAREZA. Em conflito entre estética e clareza, vence a clareza.
-
-Devolva APENAS a imagem final, sem texto extra.`;
-
-            // Monta partes: prompt + logo + templates + artes anteriores (baixadas das URLs).
             const parts: GoogleImagePart[] = [{ text: promptText }];
 
             const logoInline = dataUrlToInline(refs.logo.dataUrl);
@@ -252,8 +170,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
               }
             }
 
-            // Aprendizado contínuo: últimas N artes do bucket inteiro como
-            // referência adicional de estilo (configurável via GLOREX_BUCKET_REFS_LIMIT).
+            // Aprendizado contínuo: últimas N artes do bucket inteiro.
             try {
               const bucketInlines = await fetchBucketArtsAsInline(undefined, abortSignal);
               for (const inline of bucketInlines) {
@@ -265,7 +182,7 @@ Devolva APENAS a imagem final, sem texto extra.`;
               /* refs do bucket são opcionais */
             }
 
-            // Artes geradas nesta sessão do usuário (URLs vindas do localStorage).
+            // Artes geradas nesta sessão do usuário.
             for (const url of previousArts) {
               if (abortSignal?.aborted) return aborted();
               const inline = await fetchUrlAsInline(url, abortSignal);
@@ -299,9 +216,9 @@ Devolva APENAS a imagem final, sem texto extra.`;
               imageUrl: result.imageUrl,
               requestId: result.requestId,
               resumo: {
-                dia: b.dia,
-                abertura: b.abertura,
-                bolaDoDia: b.bolaDoDia,
+                dia: briefing.dia_da_semana_evento,
+                abertura: briefing.horario_abertura,
+                bolaDoDia: briefing.dia_numero,
               },
             };
           },
