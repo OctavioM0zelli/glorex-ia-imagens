@@ -77,6 +77,133 @@ export async function fetchUrlAsInline(
   }
 }
 
+// ============================================================================
+// Referências contínuas do bucket — usa artes já geradas (todas) como
+// contexto adicional de aprendizado de estilo na próxima geração.
+// ============================================================================
+
+const BUCKET_REFS_LIMIT = Math.max(
+  0,
+  Number(process.env.GLOREX_BUCKET_REFS_LIMIT ?? 5) || 5,
+);
+
+export async function listRecentBucketArts(limit = BUCKET_REFS_LIMIT): Promise<string[]> {
+  if (limit <= 0) return [];
+  try {
+    const { data, error } = await supabaseAdmin.storage
+      .from(BUCKET)
+      .list("", {
+        limit: Math.min(100, limit * 4),
+        sortBy: { column: "created_at", order: "desc" },
+      });
+    if (error || !data) return [];
+    const urls: string[] = [];
+    for (const f of data) {
+      if (!f.name || f.name.endsWith("/")) continue;
+      const { data: pub } = supabaseAdmin.storage.from(BUCKET).getPublicUrl(f.name);
+      if (pub?.publicUrl) urls.push(pub.publicUrl);
+      if (urls.length >= limit) break;
+    }
+    return urls;
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchBucketArtsAsInline(
+  limit = BUCKET_REFS_LIMIT,
+  signal?: AbortSignal,
+): Promise<Array<{ mimeType: string; data: string }>> {
+  const urls = await listRecentBucketArts(limit);
+  const out: Array<{ mimeType: string; data: string }> = [];
+  for (const url of urls) {
+    if (signal?.aborted) break;
+    const inline = await fetchUrlAsInline(url, signal);
+    if (inline) out.push(inline);
+  }
+  return out;
+}
+
+// ============================================================================
+// Normalização determinística do briefing — moeda BRL, horários, espaços.
+// Roda DEPOIS do chat (que já reorganiza semanticamente) só para garantir
+// formato consistente antes de mandar pro Gemini.
+// ============================================================================
+
+function normalizeWhitespace(s: string): string {
+  return s.replace(/\s+/g, " ").replace(/\s+([,.;:!?])/g, "$1").trim();
+}
+
+function normalizeCurrencyInText(s: string): string {
+  // "R$400" -> "R$ 400"
+  let out = s.replace(/R\$\s*/gi, "R$ ");
+  // Números que parecem dinheiro (3+ dígitos, opcionalmente com . ou , de milhar)
+  // e que NÃO estão já precedidos por R$ ou colados num horário (19:00).
+  out = out.replace(
+    /(^|[^\d:\wR$])(\d{1,3}(?:[.\s]\d{3})+|\d{3,})(?!\s*[:hH]\d)/g,
+    (_m, pre: string, num: string) => {
+      const clean = num.replace(/[.\s]/g, "");
+      const n = Number(clean);
+      if (!Number.isFinite(n) || n < 100) return `${pre}${num}`;
+      const formatted = n.toLocaleString("pt-BR");
+      return `${pre}R$ ${formatted}`;
+    },
+  );
+  return out;
+}
+
+function normalizeTimesInText(s: string): string {
+  // "19h" -> "19:00", "19h30" -> "19:30", "19 h 30" -> "19:30"
+  return s.replace(/\b(\d{1,2})\s*h\s*(\d{0,2})\b/gi, (_m, h: string, mm: string) => {
+    const hh = h.padStart(2, "0");
+    const m = (mm || "00").padEnd(2, "0").slice(0, 2);
+    return `${hh}:${m}`;
+  });
+}
+
+function capitalizeFirst(s: string): string {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+export function normalizeBriefingString(s: string | undefined | null): string {
+  if (!s) return "";
+  let out = String(s);
+  out = normalizeWhitespace(out);
+  out = normalizeTimesInText(out);
+  out = normalizeCurrencyInText(out);
+  out = capitalizeFirst(out);
+  return out;
+}
+
+export type BriefingInput = {
+  dia: string;
+  abertura: string;
+  jogadas: Array<{ horario: string; descricao: string }>;
+  bolaDoDia: string;
+  premioBingo?: string;
+  slogan?: string;
+  observacoes?: string;
+};
+
+export function normalizeBriefingInput<T extends BriefingInput>(input: T): T {
+  return {
+    ...input,
+    dia: normalizeBriefingString(input.dia),
+    abertura: normalizeBriefingString(input.abertura),
+    jogadas: input.jogadas.map((j) => ({
+      horario: normalizeBriefingString(j.horario),
+      descricao: normalizeBriefingString(j.descricao),
+    })),
+    bolaDoDia: normalizeBriefingString(input.bolaDoDia),
+    premioBingo: input.premioBingo ? normalizeBriefingString(input.premioBingo) : input.premioBingo,
+    slogan: input.slogan ? normalizeBriefingString(input.slogan) : input.slogan,
+    observacoes: input.observacoes
+      ? normalizeBriefingString(input.observacoes)
+      : input.observacoes,
+  };
+}
+
 async function callGoogleOnce(opts: {
   apiKey: string;
   parts: GoogleImagePart[];
