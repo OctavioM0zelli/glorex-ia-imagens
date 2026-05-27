@@ -18,9 +18,9 @@ export const GlorexEventoSchema = z.object({
   ),
   conteudo: z
     .string()
-    .min(1)
+    .default("")
     .describe(
-      "Descrição livre do evento — sempre presente. Ex.: 'Série 4 reais', '2° sorteio', 'Caixa de picanha', 'Balão premiado'.",
+      "Descrição livre do evento. Opcional quando há valor que já descreve a rodada (ex.: rodada de bingo só com valor). Ex.: 'Série 4 reais', '2° sorteio', 'Caixa de picanha', 'Balão premiado'.",
     ),
   valor: z
     .string()
