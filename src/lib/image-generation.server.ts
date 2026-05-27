@@ -183,31 +183,16 @@ export function normalizeBriefingString(s: string | undefined | null): string {
 import type { GlorexBriefing } from "./glorex-briefing";
 
 export function normalizeGlorexBriefing(b: GlorexBriefing): GlorexBriefing {
-  return {
-    ...b,
-    dia_da_semana_evento: normalizeBriefingString(b.dia_da_semana_evento),
-    oferta_topo: b.oferta_topo ? normalizeBriefingString(b.oferta_topo) : b.oferta_topo,
-    horario_abertura: normalizeBriefingString(b.horario_abertura),
-    programacao: b.programacao.map((e) => ({
-      horario: normalizeBriefingString(e.horario),
-      tipo: e.tipo,
-      conteudo: normalizeBriefingString(e.conteudo),
-      valor: e.valor ? normalizeBriefingString(e.valor) : e.valor,
-      observacao: e.observacao ? normalizeBriefingString(e.observacao) : e.observacao,
-    })),
-    dia_numero: normalizeBriefingString(b.dia_numero),
-    regra_especial: b.regra_especial
-      ? normalizeBriefingString(b.regra_especial)
-      : b.regra_especial,
-    premio_extra: b.premio_extra ? normalizeBriefingString(b.premio_extra) : b.premio_extra,
-    condicao_extra: b.condicao_extra
-      ? normalizeBriefingString(b.condicao_extra)
-      : b.condicao_extra,
-    observacao_progressiva: b.observacao_progressiva
-      ? normalizeBriefingString(b.observacao_progressiva)
-      : b.observacao_progressiva,
-    chamada_final: normalizeBriefingString(b.chamada_final),
-  };
+  // Mantém quebras de linha (importantes para preservar a estrutura do texto),
+  // mas roda as normalizações de moeda e horário linha a linha.
+  const linhas = b.texto_briefing.split(/\r?\n/).map((linha) => {
+    if (!linha.trim()) return "";
+    let out = linha;
+    out = normalizeTimesInText(out);
+    out = normalizeCurrencyInText(out);
+    return out.replace(/[ \t]+/g, " ").replace(/[ \t]+([,.;:!?])/g, "$1").trim();
+  });
+  return { texto_briefing: linhas.join("\n").replace(/\n{3,}/g, "\n\n").trim() };
 }
 
 async function callGoogleOnce(opts: {
