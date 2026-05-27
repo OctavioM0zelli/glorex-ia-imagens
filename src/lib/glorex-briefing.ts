@@ -18,9 +18,9 @@ export const GlorexEventoSchema = z.object({
   ),
   conteudo: z
     .string()
-    .min(1)
+    .default("")
     .describe(
-      "Descrição livre do evento — sempre presente. Ex.: 'Série 4 reais', '2° sorteio', 'Caixa de picanha', 'Balão premiado'.",
+      "Descrição livre do evento. Opcional quando há valor que já descreve a rodada (ex.: rodada de bingo só com valor). Ex.: 'Série 4 reais', '2° sorteio', 'Caixa de picanha', 'Balão premiado'.",
     ),
   valor: z
     .string()
@@ -83,23 +83,23 @@ function describeEventoLine(e: GlorexEvento): string {
   switch (e.tipo) {
     case "rodada_bingo":
       if (e.valor) partes.push(`PRÊMIO ${e.valor}`);
-      partes.push(e.conteudo);
+      if (e.conteudo) partes.push(e.conteudo);
       if (e.observacao) partes.push(e.observacao);
       return `   ${e.horario}  ⏰  ${partes.join(" — ")}  [tipo: rodada de bingo — valor "${e.valor ?? ""}" em DOURADO 3D gigante, resto em branco]`;
     case "sorteio":
       partes.push("SORTEIO");
-      partes.push(e.conteudo);
+      if (e.conteudo) partes.push(e.conteudo);
       if (e.valor) partes.push(e.valor);
       if (e.observacao) partes.push(e.observacao);
       return `   ${e.horario}  ⏰  ${partes.join(" — ")}  [tipo: sorteio — "SORTEIO" em destaque, conteúdo em branco grande, valor em dourado se houver]`;
     case "premiacao_item":
-      partes.push(e.conteudo);
+      if (e.conteudo) partes.push(e.conteudo);
       if (e.valor) partes.push(e.valor);
       if (e.observacao) partes.push(e.observacao);
-      return `   ${e.horario}  ⏰  ${partes.join(" — ")}  [tipo: premiação de item físico — ilustrar o item (${e.conteudo}) de forma realista e premium, texto em branco grande, NÃO inventar valor]`;
+      return `   ${e.horario}  ⏰  ${partes.join(" — ")}  [tipo: premiação de item físico — ilustrar o item (${e.conteudo || "item"}) de forma realista e premium, texto em branco grande, NÃO inventar valor]`;
     case "evento":
     default:
-      partes.push(e.conteudo);
+      if (e.conteudo) partes.push(e.conteudo);
       if (e.valor) partes.push(e.valor);
       if (e.observacao) partes.push(e.observacao);
       return `   ${e.horario}  ⏰  ${partes.join(" — ")}  [tipo: evento — linha sóbria em branco, sem dourado, sem inventar valor]`;
