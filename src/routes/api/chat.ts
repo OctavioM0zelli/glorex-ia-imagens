@@ -204,10 +204,8 @@ export const Route = createFileRoute("/api/chat")({
               imageUrl: result.imageUrl,
               requestId: result.requestId,
               resumo: {
-                dia: briefing.dia_da_semana_evento,
-                abertura: briefing.horario_abertura,
-                bolaDoDia: briefing.dia_numero,
-                eventos: briefing.programacao.length,
+                caracteres: briefing.texto_briefing.length,
+                linhas: briefing.texto_briefing.split(/\r?\n/).filter((l) => l.trim()).length,
               },
             };
           },
