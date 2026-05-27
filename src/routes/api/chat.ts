@@ -48,7 +48,7 @@ CAMPOS DO SCHEMA:
     - "sorteio" — texto contém a palavra "sorteio". Mesmo com R$, classificar como sorteio.
     - "premiacao_item" — item físico (picanha, cesta, brinde, balão premiado, airfryer, frigobar, kit churrasco). NÃO inventar valor.
     - "evento" — descrição livre sem valor. Use também quando estiver em dúvida (preserve o texto).
-  - conteudo: descrição limpa do que acontece naquele horário, SEMPRE preenchido.
+  - conteudo: descrição limpa do que acontece naquele horário. OPCIONAL — pode ficar vazio quando a rodada de bingo só tem valor (ex.: "20:20 700 reais" → conteudo vazio, valor "R$ 700"). Sempre que houver descrição textual no input, preencha.
   - valor: só se houver dinheiro envolvido. Omita caso contrário.
   - observacao: detalhe extra opcional (série, condição).
 - dia_numero: número da bola do dia / "DIA XX" central, ex.: "20".
