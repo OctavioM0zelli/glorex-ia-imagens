@@ -26,78 +26,159 @@ export type GlorexBriefing = z.infer<typeof GlorexBriefingSchema>;
 export function buildGlorexImagePrompt(b: GlorexBriefing, paleta: string): string {
   const texto = b.texto_briefing.trim();
 
-  return `Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo flyer brasileiro popular-premium de BINGO / SORTEIO / CASSINO: vibrante, brilhante, organizada, ALTAMENTE LEGÍVEL. Pensada para Instagram Stories e WhatsApp Status.
+  return `Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo: flyer premium de bingo/cassino brasileiro — vibrante, brilhante, organizado, ALTAMENTE legível. Para Instagram Stories e WhatsApp Status.
 
 ==============================
-BRIEFING DO FUNCIONÁRIO (FONTE ÚNICA DA VERDADE)
+
+BRIEFING — FONTE ÚNICA DA VERDADE
+
 ==============================
-Siga FIELMENTE a estrutura, ordem e conteúdo do texto abaixo. Não invente, não omita, não reordene, não traduza. Todo horário, valor, nome, regra e palavra deve aparecer EXATAMENTE como está aqui:
+
+Siga FIELMENTE a estrutura, ordem e conteúdo abaixo. NÃO invente, NÃO omita, NÃO reordene. Todo horário, valor, nome e regra aparece EXATAMENTE como escrito:
 
 """
 ${texto}
 """
 
-Interprete o texto com bom senso brasileiro de flyer de bingo:
-- Cada linha/horário do texto vira uma linha visual da programação, na MESMA ordem.
-- Quando houver valor em R$, ele é o destaque dourado daquela linha.
-- Quando houver só descrição (sorteio, item físico, evento), mostre apenas a descrição em branco grande, SEM inventar valor.
-- Quando o texto citar item físico (picanha, cesta, balão premiado, airfryer, frigobar, kit churrasco, etc.), ILUSTRE o item de forma realista e premium, sem usar marcas reais.
-- Se houver "regra especial / bola do dia / prêmio extra", coloque em bloco de destaque com o valor em tipografia 3D dourada gigante.
-- Se houver oferta no topo (ex.: "30% de desconto no cardápio"), coloque em box destacado logo abaixo do título.
-- Termine com a chamada final que estiver no texto; se não houver, use "NÃO PERCAM!!! BOA SORTE!!!".
+==============================
+
+INFORMAÇÕES SAGRADAS — NUNCA ALTERAR
 
 ==============================
-IDENTIDADE VISUAL — LOGO
-==============================
-LOGO "NOVO GLOREX PRESENCIAL" SEMPRE no CANTO SUPERIOR ESQUERDO, em tamanho PEQUENO/COMPACTO (~15-18% da largura), nítida e bem visível, mas NUNCA grande, NUNCA centralizada, NUNCA dominando a composição. Use a PRIMEIRA imagem de referência como base do logo.
+
+PROIBIDO modificar qualquer um destes elementos:
+
+- Data / dia da semana
+
+- Todos os horários (HH:MM)
+
+- Todos os valores em R$
+
+- Número da série / jogada
+
+- Número da bola do dia
+
+- Nomes de prêmios e itens físicos
+
+- Nome/marca do evento
+
+A IA tem LIBERDADE APENAS para:
+
+- Escolher família tipográfica (display bold, serifa premium, neon outline, etc.)
+
+- Decidir peso, tamanho e estilo de fonte de cada bloco
+
+- Criar e posicionar elementos decorativos que NÃO substituam informação real
+
+- Decidir se o logo fica no canto superior esquerdo (pequeno) OU integrado ao cabeçalho (mais proeminente) — conforme melhor se encaixar no layout
 
 ==============================
+
 PALETA DESTA GERAÇÃO
-==============================
-${paleta}. Cores SATURADAS, NEON, LUXUOSAS. Fundo ESCURO, vibrante e contrastante, com brilhos, bordas iluminadas, clima festivo/premiação.
-
-REGRA DE COR PREDOMINANTE:
-- Escolha UMA cor predominante (da paleta acima) e use ela na MAIORIA dos elementos.
-- Dourado/prata aparecem só em destaques.
-- Use paleta DIFERENTE das últimas artes enviadas como referência.
 
 ==============================
-REGRA DE TEXTO E DESTAQUE
-==============================
-- COR PADRÃO DO TEXTO = BRANCO PURO, com contorno escuro e sombra para contraste sobre o fundo escuro.
-- AMARELO/DOURADO apenas para destaques: valores de prêmio (R$), horários importantes, número da bola do dia, palavra "SORTEIO" e chamada final.
-- Tipografia GRANDE, LIMPA, IMPACTANTE, em NEGRITO, com aparência 3D nos prêmios em dinheiro.
-- Texto NUNCA pode ficar confuso, cortado, sobreposto ou mal distribuído.
-- TUDO em PORTUGUÊS BRASILEIRO.
-- NUNCA renderize aspas triplas, marcadores de markdown, rótulos técnicos ou nomes de campo — só o conteúdo real do briefing.
+
+${paleta}. Fundo ESCURO e rico (preto profundo, vinho, azul-marinho ou roxo) com gradiente e brilhos. Raios de luz (burst/rays) irradiando do centro ou do topo. Acentos em OURO METÁLICO (#FFD700 → #B8860B) com shimmer. Neon suave nas bordas dos cards.
 
 ==============================
-ESTRUTURA VISUAL DE REFERÊNCIA (6 BLOCOS)
-==============================
-Use como guia de composição, adaptando ao conteúdo real do briefing acima:
-1) Topo esquerdo: logo pequena.
-2) Topo: título do dia/evento + (se houver) box de oferta.
-3) Meio-cima: "ABERTURA HH:MM" + programação em linhas horizontais, ícone de relógio ao lado de cada horário, horários alinhados à esquerda.
-4) Centro: bola de bingo gigante com o número da bola do dia (quando o briefing citar), cercada de bolas decorativas.
-5) Meio-baixo: bloco de regra especial / prêmio extra (quando o briefing citar).
-6) Base: chamada final em tipografia gigante, dourado + branco.
 
-Se o briefing não citar algum desses blocos, simplesmente OMITA — não invente conteúdo para preencher.
+ESTRUTURA DE COMPOSIÇÃO — 7 ZONAS
 
 ==============================
-ELEMENTOS DECORATIVOS
-==============================
-Bolas de bingo numeradas, cédulas de dinheiro brasileiro (R$), brilhos, estrelas, confetes, molduras iluminadas, faíscas, partículas luminosas. Visual forte e comercial, sem ficar bagunçado.
+
+Siga esta ordem de cima para baixo, omitindo zonas cujo conteúdo NÃO esteja no briefing:
+
+ZONA 1 — CABEÇALHO:
+
+Logo "NOVO GLOREX PRESENCIAL" em destaque no topo — pode ser pequena no canto superior esquerdo OU centralizada/integrada ao título, conforme o layout. Use a primeira imagem de referência. Abaixo do logo (ou ao lado): DIA DA SEMANA em tipografia display gigante e bold (branca com contorno dourado ou da cor da paleta). Se houver subtítulo de evento especial (ex.: "DIA DAS MÃES", "SEXTA ESPECIAL"), insira em ribbon/faixa colorida logo abaixo.
+
+ZONA 2 — OFERTA ESPECIAL (se houver no briefing):
+
+Box de largura total com fundo dourado ou da cor de destaque. Texto da oferta em negrito, legível. Omita se não houver no briefing.
+
+ZONA 3 — ABERTURA:
+
+Box horizontal dedicado com ícone de relógio à esquerda e "ABERTURA HH:MM" em texto bold. Borda iluminada da cor da paleta.
+
+ZONA 4 — PROGRAMAÇÃO DE HORÁRIOS:
+
+Cada linha do briefing que contenha horário vira 1 CARD HORIZONTAL independente:
+
+- Fundo: gradiente escuro semitransparente
+
+- Borda: 2-3px sólida iluminada (dourado ou neon da paleta), cantos arredondados
+
+- Glow externo suave
+
+- Layout interno: [Ícone relógio] [HH:MM bold branco] | [Descrição/prêmio em dourado bold gigante]
+
+- Se houver valor em R$: valor em tipografia 3D dourada metálica GRANDE à direita
+
+- Cards empilhados verticalmente com espaçamento consistente
+
+ZONA 5 — BOLA DO DIA (somente se o briefing citar):
+
+Seção dedicada com bola de bingo 3D premium (esférica, iluminada, sombra realista) com o número em negrito. Ao lado: texto da regra da bola do dia em branco, destaque do bônus em dourado bold. Omita completamente se não houver no briefing.
+
+ZONA 6 — PRÊMIO / REGRA ESPECIAL (se houver no briefing):
+
+Box de destaque com valor do bingo em tipografia 3D dourada gigante. Omita se não houver.
+
+ZONA 7 — BASE / CHAMADA FINAL:
+
+Box full-width com borda iluminada. Texto de fechamento do briefing em tipografia premium (cursiva elegante ou display bold). Se o briefing não tiver chamada final, use "BOA SORTE!!!". Pode ter trevo, estrela ou ícone decorativo nas laterais.
 
 ==============================
+
+ELEMENTOS DECORATIVOS — USE TODOS
+
+==============================
+
+- Raios de luz (burst) irradiando do centro ou de trás do cabeçalho
+
+- Bolas de bingo numeradas decorativas nos cantos e margens
+
+- Estrelas douradas de 4-6 pontas espalhadas
+
+- Partículas douradas / glitter flutuando no fundo
+
+- Confetes metálicos dourados e da cor da paleta
+
+- Borda geral da arte: linha fina dourada + glow externo
+
+- Cédulas de real estilizadas semi-transparentes (opcional, não dominante)
+
+==============================
+
+TIPOGRAFIA
+
+==============================
+
+- Valores em R$: efeito metálico dourado 3D com highlight branco no topo (aparência cromada)
+
+- Horários: fonte clean moderna bold, branca, contorno fino dourado
+
+- Títulos/dia: display extrabold com sombra profunda e bevel
+
+- Chamada final: pode ser cursiva elegante OU display bold
+
+- TUDO em português brasileiro, sem markdown, sem aspas triplas na imagem
+
+==============================
+
 REGRAS CRÍTICAS
+
 ==============================
-- NÃO inventar horários, valores, prêmios, regras ou itens.
-- Horário sem valor em dinheiro NÃO é erro — é programação válida (sorteio, brinde, evento).
-- Manter TODOS os horários, números e valores EXATAMENTE como no briefing.
-- NÃO cortar, cobrir ou sobrepor textos — especialmente os HORÁRIOS na coluna esquerda.
-- Cada arte ÚNICA — varie disposição e decoração; cor predominante DIFERENTE da última.
-- Priorize CLAREZA. Em conflito entre estética e clareza, vence a clareza.
+
+- NÃO inventar horário, valor, prêmio, regra ou item
+
+- NUNCA cortar, sobrepor ou esconder texto — especialmente horários e valores
+
+- Manter TODOS os dados com precisão absoluta
+
+- Cada arte única — variar fontes, layout e decorações
+
+- Em conflito entre estética e legibilidade: LEGIBILIDADE VENCE
 
 Devolva APENAS a imagem final, sem texto extra.`;
 }
