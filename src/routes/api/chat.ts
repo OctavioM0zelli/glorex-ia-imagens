@@ -8,7 +8,7 @@ import { getGlorexReferences } from "@/lib/glorex-references.server";
 import {
   buildGlorexImagePrompt,
   GlorexBriefingSchema,
-  pickRandomPaleta,
+  selectPaleta,
 } from "@/lib/glorex-briefing";
 import {
   dataUrlToInline,
@@ -137,7 +137,7 @@ export const Route = createFileRoute("/api/chat")({
 
             // Etapa 2 (final): rede de segurança server-side + builder determinístico.
             const briefing = normalizeGlorexBriefing(input);
-            const paleta = pickRandomPaleta();
+            const paleta = selectPaleta(briefing.texto_briefing);
             const promptText = buildGlorexImagePrompt(briefing, paleta);
 
             const parts: GoogleImagePart[] = [{ text: promptText }];

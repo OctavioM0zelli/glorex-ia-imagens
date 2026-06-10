@@ -74,11 +74,21 @@ A IA tem LIBERDADE APENAS para:
 
 ==============================
 
-PALETA DESTA GERAÇÃO
+PALETA E TEMA DESTA GERAÇÃO
 
 ==============================
 
-${paleta}. Fundo ESCURO e rico (preto profundo, vinho, azul-marinho ou roxo) com gradiente e brilhos. Raios de luz (burst/rays) irradiando do centro ou do topo. Acentos em OURO METÁLICO (#FFD700 → #B8860B) com shimmer. Neon suave nas bordas dos cards.
+${paleta}.
+
+REGRA DE TEMA: A string acima já define a cor predominante E os elementos temáticos desta arte. Use-os com fidelidade:
+
+- A COR PREDOMINANTE deve dominar o fundo, bordas dos cards e elementos principais
+
+- Os ELEMENTOS TEMÁTICOS citados devem aparecer como decoração (não substituem informação real)
+
+- Dourado metálico aparece SEMPRE nos valores em R$, horários de destaque e bordas dos cards — independente do tema
+
+- Se o tema for festivo/feriado, os elementos temáticos enriquecem os cantos, margens e fundo sem poluir as informações
 
 ==============================
 
@@ -183,15 +193,68 @@ REGRAS CRÍTICAS
 Devolva APENAS a imagem final, sem texto extra.`;
 }
 
-export function pickRandomPaleta(): string {
+export function selectPaleta(texto: string): string {
+  const t = texto.toLowerCase();
+
+  // ── FERIADOS E EVENTOS TEMÁTICOS ──
+
+  if (/namorad|valentine|corações?|apaixonado/i.test(t))
+    return "VERMELHO INTENSO + ROSA QUENTE — fundo vermelho escuro com gradiente rosa, elementos: corações dourados 3D, rosas vermelhas, flechas de cupido, pétalas caindo, brilhos em rosa e vermelho";
+
+  if (/páscoa|pascoa|coelho|chocolate|ovos? de páscoa|ovos? de pascoa/i.test(t))
+    return "AMARELO PASTEL + ROSA SUAVE + VERDE PRIMAVERA — fundo gradiente entre lilás escuro e roxo, elementos: ovos de páscoa coloridos 3D, coelhos fofos, cenouras douradas, flores da primavera, brilhos em amarelo e rosa";
+
+  if (/natal|noel|papai noel|neve|rena|renas|christmas/i.test(t))
+    return "VERMELHO NATALINO + VERDE ESCURO — fundo vermelho e verde com neve caindo, elementos: estrelas de natal douradas, sinos, meias de natal, bolas de árvore, flocos de neve, luzes piscantes douradas e brancas";
+
+  if (/ano novo|réveillon|reveillon|virada|fogos|champanhe/i.test(t))
+    return "DOURADO CHAMPANHE + PRETO LUXO — fundo preto profundo com explosões de fogos dourados e champanhe, elementos: taças de champanhe, fogos de artifício, relógio marcando meia-noite, confetes dourados e prateados";
+
+  if (/mães?|dia das mães|mama|mamãe/i.test(t))
+    return "ROSA VIBRANTE + ROXO SUAVE — fundo gradiente de roxo escuro para rosa profundo, elementos: rosas cor-de-rosa 3D, corações rosa e lilás, laços decorativos, flores delicadas, brilhos em rosa e dourado";
+
+  if (/pais?|dia dos pais|papai|papão/i.test(t))
+    return "AZUL ROYAL + DOURADO — fundo azul marinho profundo com dourado, elementos: gravata dourada, troféu, estrelas, elementos masculinos premium, brilhos em azul e ouro";
+
+  if (/criança|crianças|dia das crianças|infantil/i.test(t))
+    return "AMARELO NEON + LARANJA VIBRANTE — fundo amarelo e laranja saturados, elementos: balões coloridos, estrelas alegres, confetes multicoloridos, bolas de bingo animadas, visual festivo e divertido";
+
+  if (/carnaval|micareta|folia|samba|bloco/i.test(t))
+    return "VERDE + AMARELO + AZUL — fundo preto com explosão das cores do Brasil, elementos: confetes multicoloridos, máscaras de carnaval, plumas, serpentinas, brilhos em todas as cores";
+
+  if (/junina|são joão|arraial|festa junina|forró|quadrilha/i.test(t))
+    return "VERMELHO + AMARELO + AZUL — fundo vermelho com bandeirinhas coloridas, elementos: chapéu de palha, bandeirinhas de festa junina, fogueira estilizada, estrelas amarelas, visual de arraial festivo";
+
+  if (/halloween|terror|assombra|bruxa|abóbora/i.test(t))
+    return "LARANJA NEON + PRETO — fundo preto profundo com laranja neon, elementos: abóboras 3D, morcegos, estrelas laranjas, teias de aranha douradas, névoa misteriosa, brilhos em laranja";
+
+  if (/verde|brazil|brasil|independência|sete de setembro/i.test(t))
+    return "VERDE BRASIL + AMARELO OURO — fundo verde escuro com amarelo dourado, elementos: estrelas do Brasil, confetes verde e amarelo, brilhos patrióticos";
+
+  // ── PROMOÇÕES E EVENTOS ESPECIAIS ──
+
+  if (/especial|vip|exclusiv|luxo|premium|gala|grand/i.test(t))
+    return "DOURADO METÁLICO + PRETO LUXO — fundo preto profundo com ouro metálico, elementos: diamantes, coroas douradas, taças de champanhe, faíscas de diamante, visual de gala premium";
+
+  if (/aniversário|aniversario|birthday|parabéns|anos?$/i.test(t))
+    return "DOURADO + ROXO REAL — fundo roxo profundo com dourado, elementos: balões dourados 3D, bolos de aniversário estilizados, confetes multicoloridos, velas brilhantes, faixas de parabéns";
+
+  if (/fim de semana|sábado|domingo|final de semana/i.test(t))
+    return "LARANJA VIBRANTE + VERMELHO — fundo gradiente laranja e vermelho escuro com glow neon, elementos: sol estilizado, estrelas douradas, partículas de energia, visual animado de fim de semana";
+
+  // ── ROTAÇÃO PADRÃO (sem feriado detectado) ──
+
   const paletas = [
-    "VERMELHO + PRETO — vermelho saturado neon e preto profundo, com acentos dourados",
-    "ROXO + ROSA — roxo elétrico e rosa neon vibrante, com glow magenta",
-    "AZUL + ROXO — azul royal e roxo profundo, com glow ciano/violeta e brilhos dourados",
-    "VERDE NEON + PRETO — preto profundo com explosões em verde neon luxuoso e detalhes dourados",
-    "DOURADO + VERMELHO — dourado metálico brilhante sobre vermelho intenso, clima de premiação luxuosa",
-    "LARANJA + AMARELO — laranja saturado e amarelo neon, com contornos pretos fortes",
-    "AZUL NEON + PRETO — preto profundo com azul neon elétrico, glow ciano e detalhes dourados",
+    "VERMELHO SANGUE + PRETO — vermelho neon saturado e preto profundo, elementos: bordas neon vermelhas, raios de luz vermelhos, partículas douradas",
+    "AZUL ROYAL + CIANO — azul marinho profundo com ciano elétrico e glow ultravioleta, elementos: bordas neon azuis, faíscas brancas e azuis",
+    "ROXO ELÉTRICO + MAGENTA — roxo profundo e magenta vibrante com glow violeta, elementos: partículas roxas e rosas, brilhos metálicos",
+    "VERDE NEON + PRETO — preto profundo com explosões verde neon, elementos: bordas verdes brilhantes, partículas douradas e verdes",
+    "LARANJA SATURADO + AMARELO — laranja neon e amarelo quente sobre fundo escuro, elementos: raios de luz quentes, estrelas douradas",
+    "AZUL ESCURO + PRATA — azul marinho com acentos prateados metálicos, elementos: reflexos prateados, partículas de prata e gelo",
+    "DOURADO + VINHO — dourado metálico sobre vinho profundo, elementos: coroas, diamantes, visual de premiação máxima",
   ];
-  return paletas[Math.floor(Math.random() * paletas.length)];
+
+  const hash = [...texto].reduce((a, c) => a + c.charCodeAt(0), 0);
+
+  return paletas[hash % paletas.length];
 }
