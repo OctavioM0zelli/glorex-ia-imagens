@@ -38,6 +38,7 @@ FLUXO DA CONVERSA:
 - PROIBIDO pedir bola do dia, abertura, dia da semana, etc. se isso não estiver no texto. Mande o que o funcionário mandou.
 - Após a tool retornar, comente em 1 frase curta que a arte foi gerada e ofereça ajustes.
 - Toda arte é flyer vertical 9:16, logo "NOVO GLOREX PRESENCIAL" SEMPRE pequena no canto superior esquerdo, paleta diferente da anterior.
+- Alterne o estilo visual entre artes mais POPULARES (tons vibrantes, alegres, acessíveis) e artes mais PREMIUM (tons luxuosos, sofisticados, elegantes) a cada nova geração, variando entre esses dois perfis.
 - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
 const MAX_ARTES_GERADAS = 5;
