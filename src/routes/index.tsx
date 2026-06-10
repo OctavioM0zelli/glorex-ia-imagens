@@ -257,7 +257,7 @@ function Index() {
 
   useEffect(() => {
     if (!error) return;
-    if (/429|too many|limite de requisi|rate/i.test(error.message || "")) {
+    if ((error.message || "").startsWith("RATE_LIMIT:")) {
       setCooldownUntil(Date.now() + 60_000);
     }
   }, [error]);
@@ -480,7 +480,7 @@ function Index() {
             </div>
           )}
 
-          {error && (
+          {error && !inCooldown && (
             <div
               role="alert"
               aria-live="polite"

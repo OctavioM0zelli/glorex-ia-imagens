@@ -241,9 +241,12 @@ export const Route = createFileRoute("/api/chat")({
           onError: (error) => {
             const raw = error instanceof Error ? error.message : String(error);
             logEvent({ kind: "stream-error", requestId, error: raw });
-            const isRate = /429|too many requests|rate/i.test(raw);
+            const isRate =
+              /429|too many|rate|quota|resource.?exhausted|exhausted|overload|503|unavailable/i.test(
+                raw,
+              );
             if (isRate) {
-              return `Limite de requisições do Google atingido no chat de texto. Aguarde ~1 min e tente de novo. (id: ${requestId})`;
+              return `RATE_LIMIT: Limite de requisições do Google atingido no chat de texto. Aguarde ~1 min e tente de novo. (id: ${requestId})`;
             }
             return `${raw} (id: ${requestId})`;
           },
