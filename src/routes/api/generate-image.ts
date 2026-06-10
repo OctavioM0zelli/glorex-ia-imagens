@@ -26,7 +26,7 @@ import { getGlorexReferences } from "@/lib/glorex-references.server";
 import {
   buildGlorexImagePrompt,
   GlorexBriefingSchema,
-  pickRandomPaleta,
+  selectPaleta,
 } from "@/lib/glorex-briefing";
 
 const RequestSchema = z.union([
@@ -62,7 +62,7 @@ export const Route = createFileRoute("/api/generate-image")({
         const origin = new URL(request.url).origin;
         const promptText =
           "briefing" in body
-            ? buildGlorexImagePrompt(normalizeGlorexBriefing(body.briefing), pickRandomPaleta())
+            ? buildGlorexImagePrompt(normalizeGlorexBriefing(body.briefing), selectPaleta(normalizeGlorexBriefing(body.briefing).texto_briefing))
             : normalizeBriefingString(body.prompt);
         const parts: GoogleImagePart[] = [{ text: promptText }];
 
