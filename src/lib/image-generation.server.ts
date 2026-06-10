@@ -1,4 +1,4 @@
-// Server-only: chama o Google Gemini (Nano Banana 2), faz upload no
+// Server-only: chama o Google Gemini (Nano Banana Pro), faz upload no
 // Supabase Storage (bucket "glorex-generated-images") e devolve apenas
 // a URL pública. Centraliza retries, fallback (Lovable Gateway) e logs.
 
@@ -7,9 +7,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 export const BUCKET = "glorex-generated-images";
 const TIMEOUT_MS = 150_000;
 
-// Modelo configurável via env. Default = Nano Banana 2 Flash.
-const IMAGE_MODEL = process.env.GOOGLE_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
-const FALLBACK_MODEL = process.env.GOOGLE_IMAGE_FALLBACK_MODEL || "gemini-2.5-flash-image";
+// Modelo configurável via env. Default = Nano Banana Pro (gemini-3-pro-image-preview).
+// Fallback = Nano Banana 2 Flash (mais rápido caso o Pro falhe).
+const IMAGE_MODEL = process.env.GOOGLE_IMAGE_MODEL || "gemini-3-pro-image-preview";
+const FALLBACK_MODEL = process.env.GOOGLE_IMAGE_FALLBACK_MODEL || "gemini-3.1-flash-image-preview";
 
 export type GoogleImagePart =
   | { text: string }
