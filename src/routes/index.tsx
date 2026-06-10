@@ -480,7 +480,7 @@ function Index() {
             </div>
           )}
 
-          {error && !inCooldown && (
+          {error && !inCooldown && !(error.message || "").startsWith("RATE_LIMIT:") && (
             <div
               role="alert"
               aria-live="polite"
