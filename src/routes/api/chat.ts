@@ -11,6 +11,10 @@ import {
   selectPaleta,
 } from "@/lib/glorex-briefing";
 import {
+  getPreferencias,
+  salvarPreferencia,
+} from "@/lib/glorex-preferences.server";
+import {
   dataUrlToInline,
   fetchBucketArtsAsInline,
   fetchUrlAsInline,
@@ -38,8 +42,9 @@ FLUXO DA CONVERSA:
 - PROIBIDO pedir bola do dia, abertura, dia da semana, etc. se isso não estiver no texto. Mande o que o funcionário mandou.
 - Após a tool retornar, comente em 1 frase curta que a arte foi gerada e ofereça ajustes.
 - Toda arte é flyer vertical 9:16, logo "NOVO GLOREX PRESENCIAL" SEMPRE pequena no canto superior esquerdo, paleta diferente da anterior.
-- Alterne o estilo visual entre artes mais POPULARES (tons vibrantes, alegres, acessíveis) e artes mais PREMIUM (tons luxuosos, sofisticados, elegantes) a cada nova geração, variando entre esses dois perfis.
-- Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
+ - Alterne o estilo visual entre artes mais POPULARES (tons vibrantes, alegres, acessíveis) e artes mais PREMIUM (tons luxuosos, sofisticados, elegantes) a cada nova geração, variando entre esses dois perfis.
+ - Se o usuário der feedback sobre como as artes devem ser DAQUI PRA FRENTE (preferência geral, não pedido pontual), chame a tool salvar_preferencia_estilo com um resumo objetivo da preferência, e confirme ao usuário em texto que vai aplicar isso nas próximas artes.
+ - Se o usuário pedir algo fora do escopo, explique educadamente que você só cria artes do Novo Glorex.`;
 
 const MAX_ARTES_GERADAS = 5;
 const GOOGLE_TEXT_MODEL = "gemini-2.5-flash";
@@ -139,7 +144,8 @@ export const Route = createFileRoute("/api/chat")({
             // Etapa 2 (final): rede de segurança server-side + builder determinístico.
             const briefing = normalizeGlorexBriefing(input);
             const paleta = selectPaleta(briefing.texto_briefing);
-            const promptText = buildGlorexImagePrompt(briefing, paleta);
+            const preferencias = await getPreferencias();
+            const promptText = buildGlorexImagePrompt(briefing, paleta, preferencias);
 
             const parts: GoogleImagePart[] = [{ text: promptText }];
 
@@ -223,11 +229,23 @@ export const Route = createFileRoute("/api/chat")({
           },
         });
 
+        const salvarPreferenciaTool = tool({
+          description:
+            "Usado quando o usuário dá um feedback sobre como as artes devem ser no FUTURO (não sobre o briefing atual), ex: 'sempre coloca a logo grande', 'prefiro fundo mais escuro'. NÃO usar para pedidos pontuais de uma arte específica.",
+          inputSchema: z.object({
+            preferencia: z.string().min(3).max(200).describe("Resumo curto e objetivo da preferência, em português, escrito como instrução de estilo"),
+          }),
+          execute: async (input) => {
+            await salvarPreferencia(input.preferencia);
+            return { ok: true };
+          },
+        });
+
         const result = streamText({
           model: chatModel,
           system: SYSTEM_PROMPT,
           messages: await convertToModelMessages(messages),
-          tools: { gerar_arte_glorex: gerarArte },
+          tools: { gerar_arte_glorex: gerarArte, salvar_preferencia_estilo: salvarPreferenciaTool },
           stopWhen: stepCountIs(8),
           maxRetries: 0,
           abortSignal: request.signal,
