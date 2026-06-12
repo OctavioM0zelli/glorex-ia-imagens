@@ -23,7 +23,7 @@ export type GlorexBriefing = z.infer<typeof GlorexBriefingSchema>;
 // Builder determinístico do prompt final enviado ao Nano Banana.
 // ---------------------------------------------------------------------------
 
-export function buildGlorexImagePrompt(b: GlorexBriefing, paleta: string): string {
+export function buildGlorexImagePrompt(b: GlorexBriefing, paleta: string, preferenciasAprendidas?: string[]): string {
   const texto = b.texto_briefing.trim();
 
   return `Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo: flyer premium de bingo/cassino brasileiro — vibrante, brilhante, organizado, ALTAMENTE legível. Para Instagram Stories e WhatsApp Status.
@@ -208,7 +208,7 @@ Esta arte NÃO deve parecer enxuta ou minimalista. Se a composição parecer vaz
 
 - Camadas extras de profundidade: sombras, reflexos, glow em múltiplas camadas
 
-O objetivo é uma arte DENSA, RICA e PREMIUM — nunca com grandes áreas vazias ou "sem graça".
+O objetivo é uma arte DENSA, RICA e PREMIUM — nunca com grandes áreas vazias ou "sem graça".${preferenciasAprendidas?.length ? `\n\n==============================\n\nPREFERÊNCIAS APRENDIDAS DO USUÁRIO\n\n==============================\n\nO usuário já deu os seguintes feedbacks sobre artes anteriores. Aplique-os como padrão nesta arte, EXCEITO se conflitarem com "INFORMAÇÕES SAGRADAS" ou com algo explícito no briefing atual (briefing atual sempre vence):\n\n${preferenciasAprendidas.map((p) => `- ${p}`).join("\n")}` : ""}
 
 ==============================
 
