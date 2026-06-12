@@ -62,15 +62,33 @@ PROIBIDO modificar qualquer um destes elementos:
 
 - Nome/marca do evento
 
-A IA tem LIBERDADE APENAS para:
+A IA tem LIBERDADE para enriquecer a arte das seguintes formas, SEM alterar nenhuma informação sagrada:
 
-- Escolher família tipográfica (display bold, serifa premium, neon outline, etc.)
+- Escolher família tipográfica, peso e tamanho de fonte de cada bloco
 
-- Decidir peso, tamanho e estilo de fonte de cada bloco
+- AUMENTAR o tamanho de qualquer texto para dar mais destaque visual (o conteúdo continua o mesmo, só fica maior/mais chamativo)
 
-- Criar e posicionar elementos decorativos que NÃO substituam informação real
+- Adicionar banners de promoção, letreiros luminosos estilo neon/cassino, placas "NOVO", "IMPERDÍVEL", "ÚLTIMA CHANCE" como elementos decorativos extras (desde que não substituam nem dupliquem informação real)
 
-- Decidir se o logo fica no canto superior esquerdo (pequeno) OU integrado ao cabeçalho (mais proeminente) — conforme melhor se encaixar no layout
+- Adicionar elementos de cassino: fichas de poker, símbolos de caça-níquel (7, cereja, sino), cartas de baralho, roleta estilizada
+
+- Criar molduras, setas, selos ou ícones de destaque apontando para informações que a IA julgar mais importantes (ex.: o maior prêmio do dia)
+
+- Reposicionar e redimensionar a LOGO livremente DENTRO da zona de cabeçalho (topo ~25% da arte) — pequena no canto, grande centralizada, ou integrada ao título, conforme o que ficar mais bonito para aquele layout
+
+==============================
+
+PEDIDOS DE ESTILO DENTRO DO BRIEFING
+
+==============================
+
+Se o texto do briefing contiver pedidos de ESTILO/DESTAQUE (ex.: "destaca isso", "deixa bem grande", "coloca um banner", "quero algo bem luminoso", "chama atenção pra esse prêmio"), trate como INSTRUÇÃO VISUAL:
+
+- Aplique o destaque/estilo pedido ao elemento referenciado (fonte maior, banner, glow, moldura, etc.)
+
+- NÃO renderize a frase de pedido como texto na arte — ela é instrução para você, não conteúdo
+
+- Em caso de dúvida sobre qual elemento o pedido se refere, aplique ao elemento de maior valor monetário ou ao título principal
 
 ==============================
 
@@ -173,6 +191,24 @@ TIPOGRAFIA
 - Chamada final: pode ser cursiva elegante OU display bold
 
 - TUDO em português brasileiro, sem markdown, sem aspas triplas na imagem
+
+==============================
+
+AUTONOMIA CRIATIVA — ENRIQUECIMENTO
+
+==============================
+
+Esta arte NÃO deve parecer enxuta ou minimalista. Se a composição parecer vazia ou simples após posicionar as informações obrigatórias, ADICIONE proativamente:
+
+- Mais elementos decorativos nas margens, cantos e espaços vazios (bolas de bingo, estrelas, partículas, fichas, confetes)
+
+- Um banner ou letreiro luminoso extra de "chamada" se houver espaço sobrando
+
+- Texturas, padrões sutis de fundo (geométricos, luxuosos) para preencher áreas vazias
+
+- Camadas extras de profundidade: sombras, reflexos, glow em múltiplas camadas
+
+O objetivo é uma arte DENSA, RICA e PREMIUM — nunca com grandes áreas vazias ou "sem graça".
 
 ==============================
 

@@ -1,22 +1,24 @@
-## Plano: Upgrade para Nano Banana Pro
+## Objetivo
 
-### Objetivo
-Trocar o modelo de geração de imagem do Glorex para a versão mais avançada do Nano Banana (`gemini-3.1-pro-image-preview`).
+Fazer 3 edições cirúrgicas no template literal de `buildGlorexImagePrompt` em `src/lib/glorex-briefing.ts`, sem reescrever o prompt inteiro nem tocar em mais nada.
 
-### Alterações
+## Edições
 
-1. **Atualizar `src/lib/image-generation.server.ts`**
-   - Trocar o default de `IMAGE_MODEL` de `gemini-3.1-flash-image-preview` → `gemini-3.1-pro-image-preview`
-   - Manter o fallback como `gemini-3.1-flash-image-preview` (a versão flash vira fallback, já que é mais rápida/menor custo)
-   - Atualizar comentários internos que mencionam "Nano Banana 2 Flash"
+### Edição 1 — Expandir "LIBERDADE" (linhas 65-73)
+Substituir a lista atual "A IA tem LIBERDADE APENAS para:" (com 4 itens sobre fonte, peso, decoração e posição do logo) pela nova versão "A IA tem LIBERDADE para enriquecer a arte das seguintes formas, SEM alterar nenhuma informação sagrada:" com 6 itens: escolha tipográfica, aumentar tamanho de texto, banners/letreiros neon e placas, elementos de cassino (fichas, caça-níquel, cartas, roleta), molduras/setas/selos de destaque, e reposicionar/redimensionar a logo livremente dentro da zona de cabeçalho.
 
-2. **Verificar compatibilidade**
-   - O endpoint `generateContent` da Google AI API suporta o modelo pro-image-preview com os mesmos parâmetros (`responseModalities`, `imageConfig`, `aspectRatio: "9:16"`)
-   - Nenhuma mudança no schema de requisição/resposta necessária
+### Edição 2 — Nova seção "PEDIDOS DE ESTILO DENTRO DO BRIEFING"
+Inserir imediatamente após o bloco "INFORMAÇÕES SAGRADAS — NUNCA ALTERAR" (após a linha 73, antes do bloco "PALETA E TEMA DESTA GERAÇÃO" na linha 75). Instrui a IA a tratar pedidos de estilo no briefing como instrução visual (não renderizar a frase como texto), e em dúvida aplicar ao elemento de maior valor monetário ou título principal.
 
-### Modelos após a mudança
-- **Primário:** `gemini-3.1-pro-image-preview` (maior qualidade, pro-level)
-- **Fallback:** `gemini-3.1-flash-image-preview` (mais rápido, caso o pro falhe)
+### Edição 3 — Nova seção "AUTONOMIA CRIATIVA — ENRIQUECIMENTO"
+Inserir imediatamente antes do bloco "REGRAS CRÍTICAS" (antes da linha 177/179). Instrui a IA a evitar arte enxuta/minimalista, adicionando proativamente decorações nas margens, banner extra, texturas de fundo e camadas de profundidade — objetivo: arte densa, rica e premium.
 
-### Arquivos modificados
-- `src/lib/image-generation.server.ts` (linhas 10-12)
+## Não tocar
+- Bloco "BRIEFING — FONTE ÚNICA DA VERDADE"
+- Bloco "PALETA E TEMA DESTA GERAÇÃO"
+- Estrutura das 7 zonas
+- Conteúdo do bloco "REGRAS CRÍTICAS" (apenas inserir a Edição 3 antes dele)
+- `selectPaleta`, schema `GlorexBriefingSchema`, e qualquer outro arquivo
+
+## Verificação
+Reler o trecho editado para confirmar que apenas os 3 pontos foram alterados e que o template literal continua sintaticamente válido (crases e `${...}` intactos).
