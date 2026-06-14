@@ -7,10 +7,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 export const BUCKET = "glorex-generated-images";
 const TIMEOUT_MS = 150_000;
 
-// Modelo configurável via env. Default = Nano Banana Pro (gemini-3-pro-image-preview).
-// Fallback = Nano Banana 2 Flash (mais rápido caso o Pro falhe).
-const IMAGE_MODEL = process.env.GOOGLE_IMAGE_MODEL || "gemini-3-pro-image-preview";
-const FALLBACK_MODEL = process.env.GOOGLE_IMAGE_FALLBACK_MODEL || "gemini-3.1-flash-image-preview";
+// Modelo configurável via env. Default = Nano Banana 2 Flash (gemini-3.1-flash-image-preview).
+// Fallback = Nano Banana Pro (caso o Flash falhe).
+const IMAGE_MODEL = process.env.GOOGLE_IMAGE_MODEL || "gemini-3.1-flash-image-preview";
+const FALLBACK_MODEL = process.env.GOOGLE_IMAGE_FALLBACK_MODEL || "gemini-3-pro-image-preview";
 
 export type GoogleImagePart =
   | { text: string }
