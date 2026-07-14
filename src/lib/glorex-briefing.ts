@@ -210,9 +210,50 @@ Esta arte NÃO deve parecer enxuta ou minimalista. Se a composição parecer vaz
 
 O objetivo é uma arte DENSA, RICA e PREMIUM — nunca com grandes áreas vazias ou "sem graça".${preferenciasAprendidas?.length ? `\n\n==============================\n\nPREFERÊNCIAS APRENDIDAS DO USUÁRIO\n\n==============================\n\nO usuário já deu os seguintes feedbacks sobre artes anteriores. Aplique-os como padrão nesta arte, EXCEITO se conflitarem com "INFORMAÇÕES SAGRADAS" ou com algo explícito no briefing atual (briefing atual sempre vence):\n\n${preferenciasAprendidas.map((p) => `- ${p}`).join("\n")}` : ""}
 
+⛔ PROIBIÇÃO ABSOLUTA — TEXTO NÃO AUTORIZADO
+
+REGRA DE OURO: Todo texto visível na arte deve ter origem LITERAL no texto_briefing enviado pelo usuário. A IA NÃO tem licença criativa para inventar, completar ou "sugerir" texto algum.
+
+PROIBIDO adicionar qualquer texto que não esteja no briefing, incluindo:
+
+- Termos promocionais: "Oferta do Dia", "Oferta Especial", "Promoção", "Aproveite", "Imperdível", "Só Hoje", "Última Chance", "Super", "Mega", "Exclusivo", "Destaque" ou qualquer variante — MESMO QUE pareça adequado ao contexto
+
+- Valores em dinheiro (R$) que NÃO estejam escritos no briefing
+
+- Horários ou faixas de horário que NÃO constem explicitamente no briefing
+
+- Prêmios, itens, brindes ou nomes de premiação que NÃO foram mencionados
+
+- Números de série, edição, rodada ou qualquer numeração não descrita
+
+- Slogans, chamadas, frases motivacionais ou qualquer texto que a IA tenha "imaginado"
+
+REGRA DE CONTAGEM — OBRIGATÓRIA:
+
+- Se o briefing lista 2 horários → a arte renderiza EXATAMENTE 2 horários. Nunca 3.
+
+- Se o briefing lista 3 prêmios → a arte renderiza EXATAMENTE esses 3 prêmios. Nunca invente um 4º.
+
+- Se um valor não foi mencionado → ele não aparece na arte. Ponto.
+
+PERMITIDO (apenas elementos visuais SEM texto):
+
+- Fichas de cassino, cartas de baralho, dados, símbolos de caça-níquel
+
+- Bolas de bingo, bolas de loteria, globo giratório estilizado
+
+- Ícones gráficos de sorte (sete, cereja, sino, estrela, diamante) — SEM palavra alguma
+
+- Decorações geométricas, raios de luz, partículas douradas, molduras ornamentais, efeitos neon
+
+- Banners e faixas decorativas — SOMENTE se o texto dentro deles vier integralmente do briefing
+
+──────────────────────────────────────────────────
+
 ==============================
 
 REGRAS CRÍTICAS
+
 
 ==============================
 
