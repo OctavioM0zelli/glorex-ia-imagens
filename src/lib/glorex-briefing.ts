@@ -124,7 +124,7 @@ Siga esta ordem de cima para baixo, omitindo zonas cujo conteúdo NÃO esteja no
 
 ZONA 1 — CABEÇALHO:
 
-Logo "NOVO GLOREX PRESENCIAL" em destaque no topo — pode ser pequena no canto superior esquerdo OU centralizada/integrada ao título, conforme o layout. Use a primeira imagem de referência. Abaixo do logo (ou ao lado): DIA DA SEMANA em tipografia display gigante e bold (branca com contorno dourado ou da cor da paleta). Se houver subtítulo de evento especial (ex.: "DIA DAS MÃES", "SEXTA ESPECIAL"), insira em ribbon/faixa colorida logo abaixo.
+Logo "NOVO GLOREX PRESENCIAL" em destaque no topo — pode ser pequena no canto superior esquerdo OU centralizada/integrada ao título, conforme o layout. Use a primeira imagem de referência. Abaixo do logo (ou ao lado): DIA DA SEMANA em tipografia display gigante e bold (branca com contorno dourado ou da cor da paleta). Subtítulo de evento especial APENAS se estiver literalmente no briefing — nunca invente um.
 
 ZONA 2 — OFERTA ESPECIAL (se houver no briefing):
 
