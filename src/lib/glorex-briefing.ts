@@ -74,7 +74,7 @@ A IA tem LIBERDADE para enriquecer a arte das seguintes formas, SEM alterar nenh
 
 - AUMENTAR o tamanho de qualquer texto para dar mais destaque visual (o conteúdo continua o mesmo, só fica maior/mais chamativo)
 
-- Adicionar banners de promoção, letreiros luminosos estilo neon/cassino, placas "NOVO", "IMPERDÍVEL", "ÚLTIMA CHANCE" como elementos decorativos extras (desde que não substituam nem dupliquem informação real)
+- Adicionar molduras luminosas e frames neon estilo cassino como elementos decorativos SEM texto adicional (nunca placas com palavras inventadas)
 
 - Adicionar elementos de cassino: fichas de poker, símbolos de caça-níquel (7, cereja, sino), cartas de baralho, roleta estilizada
 
