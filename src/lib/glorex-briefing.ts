@@ -273,6 +273,12 @@ REGRAS CRÍTICAS
 
 - Em conflito entre estética e legibilidade: LEGIBILIDADE VENCE
 
+⛔ CHECAGEM FINAL ANTES DE RENDERIZAR:
+
+Antes de gerar a imagem, releia o briefing entre aspas triplas. Se qualquer texto que você planeja desenhar NÃO aparece literalmente lá, REMOVA. Sem exceções. Sem "Oferta Especial", sem "Imperdível", sem valores/horários inventados, sem números de série, sem chamadas motivacionais.
+
+FINAL STRICT REMINDER: Only render text that exists verbatim in the triple-quoted briefing. Any invented word, price, time, badge, or slogan is a failure — remove it before rendering.
+
 Devolva APENAS a imagem final, sem texto extra.`;
 }
 
