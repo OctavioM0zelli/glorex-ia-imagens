@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "sdk_version": "0.22.2",
+  "path": "/mcp",
+  "auth": {
+    "type": "oauth",
+    "issuer": "https://vjhnlxhnwpfslanvbbuy.supabase.co/auth/v1",
+    "accepted_audiences": [
+      "authenticated"
+    ]
+  },
+  "mcp": {
+    "server": {
+      "name": "novo-glorex-mcp",
+      "version": "0.1.0",
+      "title": "Novo Glorex — Gerador de Artes"
+    },
+    "tools": [
+      {
+        "name": "gerar_arte_glorex",
+        "title": "Gerar arte do Novo Glorex",
+        "description": "Gera um flyer promocional vertical (9:16) do Novo Glorex Presencial a partir do briefing do dia. Recebe o texto cru da programação (horários, prêmios, dia da semana, bola do dia, regras) e retorna a URL pública da imagem gerada.",
+        "annotations": {
+          "readOnlyHint": false,
+          "destructiveHint": false,
+          "idempotentHint": false,
+          "openWorldHint": false
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "texto_briefing": {
+              "type": "string",
+              "minLength": 3,
+              "description": "Texto completo da programação do dia, exatamente como o funcionário escreveria (com quebras de linha). Use R$ e horários hh:mm."
+            }
+          },
+          "required": [
+            "texto_briefing"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
