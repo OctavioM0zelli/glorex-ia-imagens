@@ -26,7 +26,13 @@ export type GlorexBriefing = z.infer<typeof GlorexBriefingSchema>;
 export function buildGlorexImagePrompt(b: GlorexBriefing, paleta: string, preferenciasAprendidas?: string[]): string {
   const texto = b.texto_briefing.trim();
 
-  return `Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo: flyer premium de bingo/cassino brasileiro — vibrante, brilhante, organizado, ALTAMENTE legível. Para Instagram Stories e WhatsApp Status.
+  return `STRICT RULE (HIGHEST PRIORITY, OVERRIDES EVERYTHING ELSE):
+Render ONLY the text that appears verbatim inside the TRIPLE-QUOTED BRIEFING below.
+Any word, letter, number, price, time, slogan, badge, or label that is NOT literally
+present in that briefing is FORBIDDEN. Do not invent, complete, translate, or suggest
+text. Decorative shapes without text are allowed.
+
+Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo: flyer premium de bingo/cassino brasileiro — vibrante, brilhante, organizado, ALTAMENTE legível. Para Instagram Stories e WhatsApp Status.
 
 ==============================
 
@@ -68,7 +74,7 @@ A IA tem LIBERDADE para enriquecer a arte das seguintes formas, SEM alterar nenh
 
 - AUMENTAR o tamanho de qualquer texto para dar mais destaque visual (o conteúdo continua o mesmo, só fica maior/mais chamativo)
 
-- Adicionar banners de promoção, letreiros luminosos estilo neon/cassino, placas "NOVO", "IMPERDÍVEL", "ÚLTIMA CHANCE" como elementos decorativos extras (desde que não substituam nem dupliquem informação real)
+- Adicionar molduras luminosas e frames neon estilo cassino como elementos decorativos SEM texto adicional (nunca placas com palavras inventadas)
 
 - Adicionar elementos de cassino: fichas de poker, símbolos de caça-níquel (7, cereja, sino), cartas de baralho, roleta estilizada
 
@@ -118,7 +124,7 @@ Siga esta ordem de cima para baixo, omitindo zonas cujo conteúdo NÃO esteja no
 
 ZONA 1 — CABEÇALHO:
 
-Logo "NOVO GLOREX PRESENCIAL" em destaque no topo — pode ser pequena no canto superior esquerdo OU centralizada/integrada ao título, conforme o layout. Use a primeira imagem de referência. Abaixo do logo (ou ao lado): DIA DA SEMANA em tipografia display gigante e bold (branca com contorno dourado ou da cor da paleta). Se houver subtítulo de evento especial (ex.: "DIA DAS MÃES", "SEXTA ESPECIAL"), insira em ribbon/faixa colorida logo abaixo.
+Logo "NOVO GLOREX PRESENCIAL" em destaque no topo — pode ser pequena no canto superior esquerdo OU centralizada/integrada ao título, conforme o layout. Use a primeira imagem de referência. Abaixo do logo (ou ao lado): DIA DA SEMANA em tipografia display gigante e bold (branca com contorno dourado ou da cor da paleta). Subtítulo de evento especial APENAS se estiver literalmente no briefing — nunca invente um.
 
 ZONA 2 — OFERTA ESPECIAL (se houver no briefing):
 
@@ -198,17 +204,17 @@ AUTONOMIA CRIATIVA — ENRIQUECIMENTO
 
 ==============================
 
-Esta arte NÃO deve parecer enxuta ou minimalista. Se a composição parecer vazia ou simples após posicionar as informações obrigatórias, ADICIONE proativamente:
+Esta arte NÃO deve parecer enxuta ou minimalista. Se a composição parecer vazia após posicionar as informações obrigatórias, ADICIONE proativamente APENAS ELEMENTOS VISUAIS (nunca texto novo):
 
 - Mais elementos decorativos nas margens, cantos e espaços vazios (bolas de bingo, estrelas, partículas, fichas, confetes)
 
-- Um banner ou letreiro luminoso extra de "chamada" se houver espaço sobrando
+- Molduras/frames neon extras SEM texto
 
 - Texturas, padrões sutis de fundo (geométricos, luxuosos) para preencher áreas vazias
 
 - Camadas extras de profundidade: sombras, reflexos, glow em múltiplas camadas
 
-O objetivo é uma arte DENSA, RICA e PREMIUM — nunca com grandes áreas vazias ou "sem graça".${preferenciasAprendidas?.length ? `\n\n==============================\n\nPREFERÊNCIAS APRENDIDAS DO USUÁRIO\n\n==============================\n\nO usuário já deu os seguintes feedbacks sobre artes anteriores. Aplique-os como padrão nesta arte, EXCEITO se conflitarem com "INFORMAÇÕES SAGRADAS" ou com algo explícito no briefing atual (briefing atual sempre vence):\n\n${preferenciasAprendidas.map((p) => `- ${p}`).join("\n")}` : ""}
+O objetivo é uma arte DENSA, RICA e PREMIUM — nunca com grandes áreas vazias ou "sem graça". ENRIQUECIMENTO É SEMPRE VISUAL, NUNCA TEXTUAL.${preferenciasAprendidas?.length ? `\n\n==============================\n\nPREFERÊNCIAS APRENDIDAS DO USUÁRIO\n\n==============================\n\nO usuário já deu os seguintes feedbacks sobre artes anteriores. Aplique-os como padrão nesta arte, EXCEITO se conflitarem com "INFORMAÇÕES SAGRADAS" ou com algo explícito no briefing atual (briefing atual sempre vence):\n\n${preferenciasAprendidas.map((p) => `- ${p}`).join("\n")}` : ""}
 
 ⛔ PROIBIÇÃO ABSOLUTA — TEXTO NÃO AUTORIZADO
 
@@ -266,6 +272,12 @@ REGRAS CRÍTICAS
 - Cada arte única — variar fontes, layout e decorações
 
 - Em conflito entre estética e legibilidade: LEGIBILIDADE VENCE
+
+⛔ CHECAGEM FINAL ANTES DE RENDERIZAR:
+
+Antes de gerar a imagem, releia o briefing entre aspas triplas. Se qualquer texto que você planeja desenhar NÃO aparece literalmente lá, REMOVA. Sem exceções. Sem "Oferta Especial", sem "Imperdível", sem valores/horários inventados, sem números de série, sem chamadas motivacionais.
+
+FINAL STRICT REMINDER: Only render text that exists verbatim in the triple-quoted briefing. Any invented word, price, time, badge, or slogan is a failure — remove it before rendering.
 
 Devolva APENAS a imagem final, sem texto extra.`;
 }
