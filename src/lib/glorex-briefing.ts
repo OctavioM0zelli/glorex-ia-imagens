@@ -26,7 +26,13 @@ export type GlorexBriefing = z.infer<typeof GlorexBriefingSchema>;
 export function buildGlorexImagePrompt(b: GlorexBriefing, paleta: string, preferenciasAprendidas?: string[]): string {
   const texto = b.texto_briefing.trim();
 
-  return `Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo: flyer premium de bingo/cassino brasileiro — vibrante, brilhante, organizado, ALTAMENTE legível. Para Instagram Stories e WhatsApp Status.
+  return `STRICT RULE (HIGHEST PRIORITY, OVERRIDES EVERYTHING ELSE):
+Render ONLY the text that appears verbatim inside the TRIPLE-QUOTED BRIEFING below.
+Any word, letter, number, price, time, slogan, badge, or label that is NOT literally
+present in that briefing is FORBIDDEN. Do not invent, complete, translate, or suggest
+text. Decorative shapes without text are allowed.
+
+Crie uma ARTE PROMOCIONAL VERTICAL 9:16 (1080x1920) para o "NOVO GLOREX PRESENCIAL". Estilo: flyer premium de bingo/cassino brasileiro — vibrante, brilhante, organizado, ALTAMENTE legível. Para Instagram Stories e WhatsApp Status.
 
 ==============================
 

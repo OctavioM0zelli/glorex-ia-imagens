@@ -1,24 +1,45 @@
-## Objetivo
+Edição cirúrgica em `src/lib/glorex-briefing.ts`, dentro de `buildGlorexImagePrompt`. Nenhum outro arquivo é tocado.
 
-Fazer 3 edições cirúrgicas no template literal de `buildGlorexImagePrompt` em `src/lib/glorex-briefing.ts`, sem reescrever o prompt inteiro nem tocar em mais nada.
+## Mudanças
 
-## Edições
+### 1. STRICT header em inglês no TOPO do prompt
+Antes da linha `Crie uma ARTE PROMOCIONAL VERTICAL...`, inserir:
 
-### Edição 1 — Expandir "LIBERDADE" (linhas 65-73)
-Substituir a lista atual "A IA tem LIBERDADE APENAS para:" (com 4 itens sobre fonte, peso, decoração e posição do logo) pela nova versão "A IA tem LIBERDADE para enriquecer a arte das seguintes formas, SEM alterar nenhuma informação sagrada:" com 6 itens: escolha tipográfica, aumentar tamanho de texto, banners/letreiros neon e placas, elementos de cassino (fichas, caça-níquel, cartas, roleta), molduras/setas/selos de destaque, e reposicionar/redimensionar a logo livremente dentro da zona de cabeçalho.
+```
+STRICT RULE (HIGHEST PRIORITY, OVERRIDES EVERYTHING ELSE):
+Render ONLY the text that appears verbatim inside the TRIPLE-QUOTED BRIEFING below.
+Any word, letter, number, price, time, slogan, badge, or label that is NOT literally
+present in that briefing is FORBIDDEN. Do not invent, complete, translate, or suggest
+text. Decorative shapes without text are allowed.
+```
 
-### Edição 2 — Nova seção "PEDIDOS DE ESTILO DENTRO DO BRIEFING"
-Inserir imediatamente após o bloco "INFORMAÇÕES SAGRADAS — NUNCA ALTERAR" (após a linha 73, antes do bloco "PALETA E TEMA DESTA GERAÇÃO" na linha 75). Instrui a IA a tratar pedidos de estilo no briefing como instrução visual (não renderizar a frase como texto), e em dúvida aplicar ao elemento de maior valor monetário ou título principal.
+Comando curto e imperativo em inglês porque modelos de imagem (Gemini/Nano Banana) obedecem melhor esse formato como âncora inicial.
 
-### Edição 3 — Nova seção "AUTONOMIA CRIATIVA — ENRIQUECIMENTO"
-Inserir imediatamente antes do bloco "REGRAS CRÍTICAS" (antes da linha 177/179). Instrui a IA a evitar arte enxuta/minimalista, adicionando proativamente decorações nas margens, banner extra, texturas de fundo e camadas de profundidade — objetivo: arte densa, rica e premium.
+### 2. Repetir a proibição no FINAL (sanduíche)
+O bloco atual "PROIBIÇÃO ABSOLUTA" está no meio (linhas 213-250). Além dele:
+- Manter o bloco no meio (já bom).
+- Adicionar reforço final logo antes de `Devolva APENAS a imagem final` (linha 270):
+
+```
+⛔ CHECAGEM FINAL ANTES DE RENDERIZAR:
+Antes de gerar a imagem, releia o briefing entre aspas triplas. Se qualquer texto
+que você planeja desenhar NÃO aparece literalmente lá, REMOVA. Sem exceções.
+Sem "Oferta Especial", sem "Imperdível", sem valores/horários inventados,
+sem números de série, sem chamadas motivacionais.
+```
+
+Repetição espaçada (topo + meio + final) é mais eficaz que só mover.
+
+### 3. Purgar gatilhos indutores de texto
+Reescrever trechos que hoje literalmente pedem para o modelo inventar texto:
+
+- **Linha 71** (bloco "LIBERDADE"): remover `placas "NOVO", "IMPERDÍVEL", "ÚLTIMA CHANCE"` e trocar "banners de promoção, letreiros luminosos" por "molduras luminosas e frames neon SEM texto adicional".
+- **Linha 121** (ZONA 1): remover exemplo `"DIA DAS MÃES", "SEXTA ESPECIAL"` — trocar por "somente se o subtítulo estiver literalmente no briefing".
+- **Bloco AUTONOMIA CRIATIVA (linhas 197-211)**: remover `"Um banner ou letreiro luminoso extra de 'chamada' se houver espaço sobrando"`. Substituir por "Camadas visuais extras (partículas, glow, texturas) — nunca texto novo". Deixar explícito que enriquecimento é apenas visual.
+- **Bloco ELEMENTOS DECORATIVOS**: sem alterações (já não induz texto).
 
 ## Não tocar
-- Bloco "BRIEFING — FONTE ÚNICA DA VERDADE"
-- Bloco "PALETA E TEMA DESTA GERAÇÃO"
-- Estrutura das 7 zonas
-- Conteúdo do bloco "REGRAS CRÍTICAS" (apenas inserir a Edição 3 antes dele)
-- `selectPaleta`, schema `GlorexBriefingSchema`, e qualquer outro arquivo
 
-## Verificação
-Reler o trecho editado para confirmar que apenas os 3 pontos foram alterados e que o template literal continua sintaticamente válido (crases e `${...}` intactos).
+- Nenhum outro arquivo.
+- `GlorexBriefingSchema`, `selectPaleta`, estrutura das 7 zonas, paleta, tipografia, regras críticas finais.
+- Toda a lógica de referências, MCP, `chat.ts`, `image-generation.server.ts`.
