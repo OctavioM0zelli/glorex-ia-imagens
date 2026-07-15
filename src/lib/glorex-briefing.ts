@@ -204,17 +204,17 @@ AUTONOMIA CRIATIVA — ENRIQUECIMENTO
 
 ==============================
 
-Esta arte NÃO deve parecer enxuta ou minimalista. Se a composição parecer vazia ou simples após posicionar as informações obrigatórias, ADICIONE proativamente:
+Esta arte NÃO deve parecer enxuta ou minimalista. Se a composição parecer vazia após posicionar as informações obrigatórias, ADICIONE proativamente APENAS ELEMENTOS VISUAIS (nunca texto novo):
 
 - Mais elementos decorativos nas margens, cantos e espaços vazios (bolas de bingo, estrelas, partículas, fichas, confetes)
 
-- Um banner ou letreiro luminoso extra de "chamada" se houver espaço sobrando
+- Molduras/frames neon extras SEM texto
 
 - Texturas, padrões sutis de fundo (geométricos, luxuosos) para preencher áreas vazias
 
 - Camadas extras de profundidade: sombras, reflexos, glow em múltiplas camadas
 
-O objetivo é uma arte DENSA, RICA e PREMIUM — nunca com grandes áreas vazias ou "sem graça".${preferenciasAprendidas?.length ? `\n\n==============================\n\nPREFERÊNCIAS APRENDIDAS DO USUÁRIO\n\n==============================\n\nO usuário já deu os seguintes feedbacks sobre artes anteriores. Aplique-os como padrão nesta arte, EXCEITO se conflitarem com "INFORMAÇÕES SAGRADAS" ou com algo explícito no briefing atual (briefing atual sempre vence):\n\n${preferenciasAprendidas.map((p) => `- ${p}`).join("\n")}` : ""}
+O objetivo é uma arte DENSA, RICA e PREMIUM — nunca com grandes áreas vazias ou "sem graça". ENRIQUECIMENTO É SEMPRE VISUAL, NUNCA TEXTUAL.${preferenciasAprendidas?.length ? `\n\n==============================\n\nPREFERÊNCIAS APRENDIDAS DO USUÁRIO\n\n==============================\n\nO usuário já deu os seguintes feedbacks sobre artes anteriores. Aplique-os como padrão nesta arte, EXCEITO se conflitarem com "INFORMAÇÕES SAGRADAS" ou com algo explícito no briefing atual (briefing atual sempre vence):\n\n${preferenciasAprendidas.map((p) => `- ${p}`).join("\n")}` : ""}
 
 ⛔ PROIBIÇÃO ABSOLUTA — TEXTO NÃO AUTORIZADO
 
